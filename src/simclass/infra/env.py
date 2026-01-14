@@ -1,0 +1,19 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+
+def load_dotenv(path: Path, *, override: bool = False) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'").strip('"')
+        if not override and key in os.environ:
+            continue
+        os.environ[key] = value

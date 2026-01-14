@@ -1,0 +1,377 @@
+﻿{
+  "simulation": {
+    "ticks": 1680,
+    "tick_seconds": 0.1
+  },
+  "runtime": {
+    "queue_maxsize": 50,
+    "send_timeout": 0.2,
+    "send_retries": 2,
+    "retry_backoff": 0.1,
+    "restart_limit": 2,
+    "restart_delay": 0.2
+  },
+  "calendar": {
+    "start_day": "Mon",
+    "start_time": "12:00",
+    "minutes_per_tick": 1,
+    "day_minutes": 240,
+    "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  "routine": {
+    "wake_time": "08:00",
+    "breakfast_start": "08:20",
+    "breakfast_end": "08:40",
+    "morning_class_start": "08:50",
+    "morning_class_count": 3,
+    "class_duration": 40,
+    "break_duration": 10,
+    "test_start": "11:20",
+    "test_end": "12:00",
+    "lunch_start": "12:00",
+    "lunch_end": "14:00",
+    "afternoon_class_start": "14:00",
+    "afternoon_class_count": 5,
+    "school_end": "18:00",
+    "review_breaks": true,
+    "review_after_school": true,
+    "after_school_review_offset": 10
+  },
+  "timetable": [
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "数学",
+      "lesson_plan": "函数与极限，常见题型解析",
+      "start_time": "08:50",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "线性代数",
+      "lesson_plan": "矩阵运算与线性方程组",
+      "start_time": "09:40",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "概率论",
+      "lesson_plan": "随机变量与常见分布",
+      "start_time": "10:30",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "物理",
+      "lesson_plan": "牛顿第二定律与受力分析",
+      "start_time": "14:00",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "微积分",
+      "lesson_plan": "导数应用与极值问题",
+      "start_time": "14:50",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "统计",
+      "lesson_plan": "抽样与置信区间",
+      "start_time": "15:40",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "数学",
+      "lesson_plan": "积分基础与面积计算",
+      "start_time": "16:30",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_a",
+      "teacher_id": "t01",
+      "topic": "数学建模",
+      "lesson_plan": "建模流程与案例分析",
+      "start_time": "17:20",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "计算机",
+      "lesson_plan": "变量与循环回顾",
+      "start_time": "08:50",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "数据结构",
+      "lesson_plan": "线性表与栈队列",
+      "start_time": "09:40",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "算法",
+      "lesson_plan": "复杂度与基础排序",
+      "start_time": "10:30",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "操作系统",
+      "lesson_plan": "进程与线程基础",
+      "start_time": "14:00",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "数据库",
+      "lesson_plan": "SQL 基础查询",
+      "start_time": "14:50",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "计算机网络",
+      "lesson_plan": "TCP/IP 基础与分层",
+      "start_time": "15:40",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "软件工程",
+      "lesson_plan": "需求分析与设计方法",
+      "start_time": "16:30",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    },
+    {
+      "group": "class_b",
+      "teacher_id": "t02",
+      "topic": "人工智能",
+      "lesson_plan": "搜索算法与简单模型",
+      "start_time": "17:20",
+      "duration": 40,
+      "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    }
+  ],
+  "llm": {
+    "enabled": true,
+    "provider": "deepseek",
+    "base_url": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat",
+    "temperature": 0.4,
+    "max_tokens": 160,
+    "timeout_seconds": 20,
+    "retry_count": 2,
+    "retry_backoff": 0.5
+  },
+  "prompts": {
+    "student": "你是浙大学生，请用中文回答，保持1到2句话。",
+    "teacher": "你是浙大老师，请用中文回答，保持1到2句话。"
+  },
+  "agent_defaults": {
+    "llm": {
+      "tools": ["get_time", "get_schedule", "get_recent_memory"]
+    },
+    "persona": {
+      "traits": ["好奇"],
+      "tone": "礼貌",
+      "interests": ["校园生活"],
+      "bio": "模拟校园中的一名参与者。",
+      "engagement": 0.6,
+      "confidence": 0.6,
+      "collaboration": 0.6
+    }
+  },
+  "persona_templates": {
+    "analytical": {
+      "traits": ["理性", "条理清晰"],
+      "tone": "沉稳",
+      "interests": ["问题求解"],
+      "bio": "习惯循序渐进思考。",
+      "engagement": 0.55,
+      "confidence": 0.7,
+      "collaboration": 0.5
+    },
+    "creative": {
+      "traits": ["有创意", "想象力强"],
+      "tone": "活泼",
+      "interests": ["设计", "表达"],
+      "bio": "经常带来新想法。",
+      "engagement": 0.75,
+      "confidence": 0.65,
+      "collaboration": 0.7
+    },
+    "quiet": {
+      "traits": ["安静", "善于观察"],
+      "tone": "温和",
+      "interests": ["阅读"],
+      "bio": "偏好简洁的记录方式。",
+      "engagement": 0.45,
+      "confidence": 0.45,
+      "collaboration": 0.5
+    },
+    "leader": {
+      "traits": ["自信", "乐于支持"],
+      "tone": "清晰",
+      "interests": ["团队合作"],
+      "bio": "擅长引导小组讨论。",
+      "engagement": 0.8,
+      "confidence": 0.85,
+      "collaboration": 0.85
+    }
+  },
+  "behavior": {
+    "student_question_prob": 0.7,
+    "office_hours_question_prob": 0.7,
+    "student_discuss_prob": 0.5,
+    "peer_discuss_prob": 0.6,
+    "peer_reply_prob": 0.5
+  },
+  "class_controller": {
+    "lecture_ticks": 4,
+    "question_ticks": 1,
+    "group_ticks": 1,
+    "summary_ticks": 1
+  },
+  "agents": [
+    {
+      "id": "s01",
+      "name": "Student01",
+      "role": "student",
+      "group": "class_a",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["好奇", "理性"], "tone": "沉稳", "interests": ["数学"], "bio": "喜欢解题。"}
+    },
+    {
+      "id": "s02",
+      "name": "Student02",
+      "role": "student",
+      "group": "class_a",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["友好", "健谈"], "tone": "热情", "interests": ["项目"], "bio": "喜欢小组讨论。"}
+    },
+    {
+      "id": "s03",
+      "name": "Student03",
+      "role": "student",
+      "group": "class_a",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["安静", "细致"], "tone": "温和", "interests": ["阅读"], "bio": "偏好简洁笔记。"}
+    },
+    {
+      "id": "s04",
+      "name": "Student04",
+      "role": "student",
+      "group": "class_a",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["有创意"], "tone": "活泼", "interests": ["设计"], "bio": "经常提出新点子。"}
+    },
+    {
+      "id": "s05",
+      "name": "Student05",
+      "role": "student",
+      "group": "class_a",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["务实"], "tone": "直接", "interests": ["工具"], "bio": "关注实现细节。"}
+    },
+    {
+      "id": "s06",
+      "name": "Student06",
+      "role": "student",
+      "group": "class_a",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["好奇"], "tone": "礼貌", "interests": ["系统"], "bio": "喜欢问系统相关问题。"}
+    },
+    {
+      "id": "s07",
+      "name": "Student07",
+      "role": "student",
+      "group": "class_b",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["有活力"], "tone": "积极", "interests": ["计算机"], "bio": "喜欢动手演示。"}
+    },
+    {
+      "id": "s08",
+      "name": "Student08",
+      "role": "student",
+      "group": "class_b",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["怀疑精神"], "tone": "中立", "interests": ["理论"], "bio": "喜欢质疑假设。"}
+    },
+    {
+      "id": "s09",
+      "name": "Student09",
+      "role": "student",
+      "group": "class_b",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["乐于支持"], "tone": "友善", "interests": ["团队合作"], "bio": "经常鼓励同伴。"}
+    },
+    {
+      "id": "s10",
+      "name": "Student10",
+      "role": "student",
+      "group": "class_b",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["专注"], "tone": "认真", "interests": ["考试"], "bio": "喜欢追问细节。"}
+    },
+    {
+      "id": "t01",
+      "name": "Teacher01",
+      "role": "teacher",
+      "group": "class_a",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["结构化"], "tone": "专业", "interests": ["数学"], "bio": "擅长循序渐进讲解。"}
+    },
+    {
+      "id": "t02",
+      "name": "Teacher02",
+      "role": "teacher",
+      "group": "class_b",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["务实"], "tone": "清晰", "interests": ["计算机"], "bio": "注重例子讲解。"}
+    },
+    {
+      "id": "t03",
+      "name": "Teacher03",
+      "role": "teacher",
+      "group": "all",
+      "llm": { "enabled": true },
+      "persona": { "traits": ["支持型"], "tone": "亲切", "interests": ["项目"], "bio": "鼓励学生提问。"}
+    }
+  ],
+  "schedule": [],
+  "api": {
+    "host": "127.0.0.1",
+    "port": 8010
+  }
+}

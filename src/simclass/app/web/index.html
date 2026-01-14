@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SimClass Campus</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">SimClass 控制台</p>
+          <h1>赛博校园教室</h1>
+          <p class="subtitle">
+            实时观察课堂互动，并快速调整每个角色的人设。
+          </p>
+        </div>
+        <div class="status-card">
+          <div class="status-row">
+            <span>状态</span>
+            <span id="status-pill" class="pill">空闲</span>
+          </div>
+          <div class="status-row">
+            <span>步数</span>
+            <span id="status-tick">0/0</span>
+          </div>
+          <div class="status-row">
+            <span>时间</span>
+            <span id="status-time">--</span>
+          </div>
+          <div class="status-row">
+            <span>角色</span>
+            <span id="status-count">0</span>
+          </div>
+          <div class="button-row">
+            <button class="btn primary" id="btn-start">开始</button>
+            <button class="btn" id="btn-pause">暂停</button>
+            <button class="btn" id="btn-resume">继续</button>
+            <button class="btn warn" id="btn-stop">停止</button>
+            <button class="btn ghost" id="btn-reload">重载</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="view-toggle">
+        <button class="btn primary" id="view-control">控制台</button>
+        <button class="btn ghost" id="view-classroom">教室视图</button>
+      </div>
+
+      <main id="control-view" class="grid">
+        <section class="panel feed">
+          <div class="panel-header">
+            <h2>课堂对话流</h2>
+            <div class="panel-actions">
+              <button class="btn ghost" id="btn-refresh">刷新</button>
+            </div>
+          </div>
+          <div class="feed-filters">
+            <label><input type="checkbox" id="filter-outbound" checked /> 发出</label>
+            <label><input type="checkbox" id="filter-inbound" /> 接收</label>
+            <select id="filter-role">
+              <option value="all">所有角色</option>
+              <option value="teacher">老师</option>
+              <option value="student">学生</option>
+            </select>
+          </div>
+          <div id="feed-list" class="feed-list"></div>
+        </section>
+
+        <section class="panel roster">
+          <div class="panel-header">
+            <h2 id="roster-title">角色列表</h2>
+            <div class="panel-actions">
+              <button class="btn ghost" id="btn-load-agents">刷新列表</button>
+            </div>
+          </div>
+          <div class="roster-tabs">
+            <button class="btn ghost active" id="tab-roster">名单</button>
+            <button class="btn ghost" id="tab-threads">对话线程</button>
+          </div>
+          <div id="agents-list" class="agents-list"></div>
+          <div id="threads-list" class="threads-list hidden"></div>
+
+          <div class="add-agent">
+            <h3>新增角色</h3>
+            <p class="hint">修改后点击重载生效。</p>
+            <div class="form-row">
+              <input id="new-id" placeholder="编号 (如 s11)" />
+              <input id="new-name" placeholder="名称" />
+            </div>
+            <div class="form-row">
+              <select id="new-role">
+                <option value="student">学生</option>
+                <option value="teacher">老师</option>
+              </select>
+              <input id="new-group" placeholder="分组 (class_a)" />
+            </div>
+            <div class="form-row">
+              <select id="new-template">
+                <option value="">模板（可选）</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <input id="new-traits" placeholder="性格标签（逗号）" />
+              <input id="new-interests" placeholder="兴趣（逗号）" />
+            </div>
+            <div class="form-row">
+              <input id="new-tone" placeholder="语气" />
+              <input id="new-bio" placeholder="简介" />
+            </div>
+          <button class="btn primary" id="btn-add-agent">添加</button>
+          </div>
+        </section>
+
+        <section class="panel timetable">
+          <div class="panel-header">
+            <h2>课表</h2>
+            <div class="panel-actions">
+              <button class="btn ghost" id="btn-refresh-timetable">刷新</button>
+            </div>
+          </div>
+          <div id="timetable-list" class="timetable-list"></div>
+        </section>
+
+        <section class="panel progress">
+          <div class="panel-header">
+            <h2>学习进度</h2>
+            <div class="panel-actions">
+              <button class="btn ghost" id="btn-refresh-knowledge">刷新</button>
+            </div>
+          </div>
+          <div id="knowledge-list" class="knowledge-list"></div>
+        </section>
+      </main>
+
+      <section id="classroom-view" class="classroom hidden">
+        <div class="panel classroom-panel">
+          <div class="panel-header">
+            <h2>教室场景</h2>
+            <div class="panel-actions">
+              <button class="btn ghost" id="btn-reset-scene">重置场景</button>
+            </div>
+          </div>
+          <div class="classroom-room">
+            <div class="board">黑板</div>
+            <div class="teacher-desk">讲台</div>
+            <div class="classroom-paths">
+              <div class="path aisle-vertical"></div>
+              <div class="path aisle-horizontal"></div>
+            </div>
+            <div id="seat-grid" class="seat-grid"></div>
+            <div id="classroom-avatars" class="classroom-avatars"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
