@@ -32,6 +32,9 @@ class StudentBehavior(BaseBehavior):
         discuss_prob: float = 0.5,
         peer_discuss_prob: float = 0.6,
         peer_reply_prob: float = 0.5,
+        noise_prob: float = 0.08,
+        rng=None,
+        social_graph=None,
     ) -> None:
         self._responder = responder
         self._question_prob = question_prob
@@ -39,6 +42,9 @@ class StudentBehavior(BaseBehavior):
         self._discuss_prob = discuss_prob
         self._peer_discuss_prob = peer_discuss_prob
         self._peer_reply_prob = peer_reply_prob
+        self._noise_prob = noise_prob
+        self._rng = rng
+        self._social_graph = social_graph
 
     async def on_message(self, agent, message: Message) -> List[OutboundMessage]:
         responses: List[OutboundMessage] = []
@@ -58,7 +64,7 @@ class StudentBehavior(BaseBehavior):
                     content=content,
                 )
             )
-            if random.random() < self._scale_prob(agent, self._question_prob, "question"):
+            if self._roll(self._scale_prob(agent, self._question_prob, "question")):
                 level_hint = self._understanding_hint(understanding)
                 question = await self._compose(
                     agent,
@@ -73,10 +79,19 @@ class StudentBehavior(BaseBehavior):
                         content=question,
                     )
                 )
+            if self._should_noise(agent):
+                noise = self._random_noise(agent)
+                responses.append(
+                    OutboundMessage(
+                        receiver_id=message.sender_id,
+                        topic="noise",
+                        content=noise,
+                    )
+                )
         elif message.topic == "quiz":
             topic = self._extract_topic(message.content) or "课堂主题"
             probability = self._scale_prob(agent, 0.85, "question")
-            if random.random() > probability:
+            if not self._roll(probability):
                 return responses
             understanding = self._understanding_for_topic(agent, topic)
             level_hint = self._understanding_hint(understanding)
@@ -138,10 +153,24 @@ class StudentBehavior(BaseBehavior):
                     content=content,
                 )
             )
+        elif message.topic == "cold_call":
+            content = await self._compose(
+                agent,
+                instruction="请简短回答老师的点名提问。",
+                incoming=f"cold_call:{message.content}",
+                fallback=f"{agent.profile.name} 简要复述了要点。",
+            )
+            responses.append(
+                OutboundMessage(
+                    receiver_id=message.sender_id,
+                    topic="answer",
+                    content=content,
+                )
+            )
         elif message.topic == "announcement":
             return []
         elif message.topic == "office_hours":
-            if random.random() < self._scale_prob(agent, self._office_hours_prob, "question"):
+            if self._roll(self._scale_prob(agent, self._office_hours_prob, "question")):
                 question = await self._compose(
                     agent,
                     instruction="请就项目提出一个简短问题。",
@@ -156,7 +185,7 @@ class StudentBehavior(BaseBehavior):
                     )
                 )
         elif message.topic == "peer_comment":
-            if random.random() < self._scale_prob(agent, self._peer_reply_prob, "peer"):
+            if self._roll(self._scale_prob(agent, self._peer_reply_prob, "peer")):
                 level_hint = self._understanding_hint(
                     self._current_understanding(agent)
                 )
@@ -178,12 +207,12 @@ class StudentBehavior(BaseBehavior):
     async def on_event(self, agent, event: SystemEvent) -> List[OutboundMessage]:
         if event.event_type == "student_discuss":
             probability = float(event.payload.get("probability", self._discuss_prob))
-            if random.random() > self._scale_prob(agent, probability, "question"):
+            if not self._roll(self._scale_prob(agent, probability, "question")):
                 return []
             topic = event.payload.get("topic", "讨论")
             group = event.payload.get("group", agent.profile.group)
             teachers = agent.directory.group_members(group, role=AgentRole.TEACHER)
-            receiver_id = random.choice(teachers) if teachers else None
+            receiver_id = self._pick_one(teachers)
             if receiver_id is None:
                 return []
             understanding = self._understanding_for_topic(agent, topic)
@@ -202,7 +231,7 @@ class StudentBehavior(BaseBehavior):
             ]
         if event.event_type == "phase_questions":
             probability = float(event.payload.get("probability", self._question_prob))
-            if random.random() > self._scale_prob(agent, probability, "question"):
+            if not self._roll(self._scale_prob(agent, probability, "question")):
                 return []
             topic = event.payload.get("topic", "讨论")
             teacher_id = event.payload.get("teacher_id")
@@ -224,7 +253,7 @@ class StudentBehavior(BaseBehavior):
             ]
         if event.event_type == "group_discussion":
             probability = float(event.payload.get("probability", self._peer_discuss_prob))
-            if random.random() > self._scale_prob(agent, probability, "peer"):
+            if not self._roll(self._scale_prob(agent, probability, "peer")):
                 return []
             topic = event.payload.get("topic", "讨论")
             group = event.payload.get("group", agent.profile.group)
@@ -232,7 +261,7 @@ class StudentBehavior(BaseBehavior):
             peers = [peer for peer in peers if peer != agent.profile.agent_id]
             if not peers:
                 return []
-            receiver_id = random.choice(peers)
+            receiver_id = self._pick_peer(agent.profile.agent_id, peers)
             understanding = self._understanding_for_topic(agent, topic)
             content = await self._compose(
                 agent,
@@ -253,6 +282,12 @@ class StudentBehavior(BaseBehavior):
             for topic in topics:
                 self._review_understanding(agent, topic, intensity)
             return []
+        if event.event_type == "routine":
+            self._update_state_for_routine(agent, event.payload.get("action", ""))
+            return []
+        if event.event_type == "day_transition":
+            self._apply_forgetting(agent, event.payload.get("day_index"))
+            return []
         return []
 
     async def _compose(self, agent, instruction: str, incoming: str, fallback: str) -> str:
@@ -263,10 +298,18 @@ class StudentBehavior(BaseBehavior):
 
     def _scale_prob(self, agent, base_prob: float, mode: str) -> float:
         persona = agent.profile.persona or {}
+        state = agent.state
         engagement = float(persona.get("engagement", 0.6))
         confidence = float(persona.get("confidence", 0.6))
         collaboration = float(persona.get("collaboration", 0.6))
-        factor = 0.4 + 0.6 * engagement
+        energy = getattr(state, "energy", 0.6)
+        attention = getattr(state, "attention", 0.6)
+        motivation = getattr(state, "motivation", 0.6)
+        stress = getattr(state, "stress", 0.2)
+        factor = 0.35 + 0.4 * engagement + 0.15 * motivation
+        factor *= 0.6 + 0.4 * energy
+        factor *= 0.6 + 0.4 * attention
+        factor *= 1.0 - min(0.4, stress)
         if mode == "peer":
             factor *= 0.6 + 0.4 * collaboration
         else:
@@ -281,21 +324,44 @@ class StudentBehavior(BaseBehavior):
         blended = current * 0.4 + score * 0.6
         updated = min(0.95, max(0.05, blended))
         agent.state.knowledge[topic] = updated
+        self._touch_review(agent, topic)
         if agent.memory_store and hasattr(agent.memory_store, "upsert_knowledge"):
             agent.memory_store.upsert_knowledge(agent.profile.agent_id, topic, updated)
         return updated
 
     def _review_understanding(self, agent, topic: str, intensity: float) -> float:
         persona = agent.profile.persona or {}
+        state = agent.state
         engagement = float(persona.get("engagement", 0.6))
         confidence = float(persona.get("confidence", 0.6))
-        gain = intensity * (0.6 + 0.4 * engagement) * (0.7 + 0.3 * confidence)
+        energy = getattr(state, "energy", 0.6)
+        attention = getattr(state, "attention", 0.6)
+        motivation = getattr(state, "motivation", 0.6)
+        gain = (
+            intensity
+            * (0.6 + 0.4 * engagement)
+            * (0.7 + 0.3 * confidence)
+            * (0.6 + 0.4 * attention)
+            * (0.6 + 0.4 * energy)
+            * (0.7 + 0.3 * motivation)
+        )
         current = agent.state.knowledge.get(topic, 0.3)
         updated = min(0.95, max(0.05, current + gain))
         agent.state.knowledge[topic] = updated
+        self._touch_review(agent, topic)
         if agent.memory_store and hasattr(agent.memory_store, "upsert_knowledge"):
             agent.memory_store.upsert_knowledge(agent.profile.agent_id, topic, updated)
         return updated
+
+    def _touch_review(self, agent, topic: str) -> None:
+        day_index = getattr(agent.state, "day_index", None)
+        if day_index is None:
+            return
+        last_reviewed = getattr(agent.state, "last_reviewed", None)
+        if last_reviewed is None:
+            last_reviewed = {}
+            agent.state.last_reviewed = last_reviewed
+        last_reviewed[topic] = day_index
 
     def _current_understanding(self, agent) -> float:
         if not agent.state.knowledge:
@@ -339,14 +405,92 @@ class StudentBehavior(BaseBehavior):
                 score = None
         return topic, score
 
+    def _roll(self, probability: float) -> bool:
+        if self._rng:
+            return self._rng.random() < probability
+        return random.random() < probability
+
+    def _pick_one(self, options: List[str]) -> Optional[str]:
+        if not options:
+            return None
+        if self._rng:
+            return self._rng.choice(options)
+        return random.choice(options)
+
+    def _pick_peer(self, agent_id: str, peers: List[str]) -> Optional[str]:
+        if not peers:
+            return None
+        if self._social_graph:
+            return self._social_graph.choose_peer(self._rng, agent_id, peers)
+        return self._pick_one(peers)
+
+    def _should_noise(self, agent) -> bool:
+        state = agent.state
+        attention = getattr(state, "attention", 0.6)
+        stress = getattr(state, "stress", 0.2)
+        base = self._noise_prob * (1.2 - attention) * (0.8 + 0.4 * stress)
+        return self._roll(max(0.02, min(0.3, base)))
+
+    def _random_noise(self, agent) -> str:
+        noises = ["走神", "插话", "窃窃私语", "分心翻书"]
+        if self._rng:
+            noise = self._rng.choice(noises)
+        else:
+            noise = random.choice(noises)
+        return f"{agent.profile.name} {noise}"
+
+    def _update_state_for_routine(self, agent, action: str) -> None:
+        state = agent.state
+        if action == "wake":
+            state.sleep_debt = max(0.0, state.sleep_debt - 0.2)
+            state.energy = min(1.0, state.energy + 0.2)
+            state.mood = min(1.0, state.mood + 0.1)
+        elif action == "breakfast_start":
+            state.energy = min(1.0, state.energy + 0.1)
+            state.attention = min(1.0, state.attention + 0.05)
+        elif action == "lunch_start":
+            state.energy = min(1.0, state.energy + 0.15)
+            state.stress = max(0.0, state.stress - 0.1)
+        elif action == "school_end":
+            state.stress = max(0.0, state.stress - 0.2)
+            state.motivation = min(1.0, state.motivation + 0.05)
+            state.energy = max(0.2, state.energy - 0.05)
+
+    def _apply_forgetting(self, agent, day_index: Optional[int]) -> None:
+        if day_index is None:
+            return
+        agent.state.day_index = day_index
+        last_reviewed = getattr(agent.state, "last_reviewed", {})
+        for topic, score in list(agent.state.knowledge.items()):
+            last_day = last_reviewed.get(topic, day_index)
+            days = max(0, day_index - last_day)
+            if days <= 0:
+                continue
+            decay = 0.97 ** days
+            fatigue = 1.0 - min(0.3, agent.state.sleep_debt)
+            updated = max(0.05, min(0.95, score * decay * fatigue))
+            if updated != score:
+                agent.state.knowledge[topic] = updated
+                if agent.memory_store and hasattr(agent.memory_store, "upsert_knowledge"):
+                    agent.memory_store.upsert_knowledge(
+                        agent.profile.agent_id, topic, updated
+                    )
+
 
 class TeacherBehavior(BaseBehavior):
-    def __init__(self, responder: Optional[LLMResponder] = None) -> None:
+    def __init__(
+        self,
+        responder: Optional[LLMResponder] = None,
+        rng=None,
+        curriculum=None,
+    ) -> None:
         self._responder = responder
         self._feedback_stats = {}
         self._strategy = {}
         self._quiz_keywords = {}
         self._assessments = {}
+        self._rng = rng
+        self._curriculum = curriculum
 
     async def on_message(self, agent, message: Message) -> List[OutboundMessage]:
         if message.topic == "question":
@@ -395,6 +539,20 @@ class TeacherBehavior(BaseBehavior):
                     content=content,
                 )
             ]
+        if message.topic == "noise":
+            content = await self._compose(
+                agent,
+                instruction="请简短提醒课堂纪律，语气不必严厉。",
+                incoming=f"noise:{message.content}",
+                fallback=f"{agent.profile.name} 提醒大家注意课堂纪律。",
+            )
+            return [
+                OutboundMessage(
+                    receiver_id=message.sender_id,
+                    topic="discipline",
+                    content=content,
+                )
+            ]
         if message.topic == "quiz_answer":
             topic = self._extract_topic(message.content) or "课堂主题"
             keywords = self._quiz_keywords.get(topic) or self._extract_keywords(
@@ -403,7 +561,9 @@ class TeacherBehavior(BaseBehavior):
             score, feedback = await self._score_answer(
                 agent, topic, message.content, keywords
             )
-            payload = f"topic={topic};score={score:.2f};feedback={feedback}"
+            course_id = self._course_for_concept(topic)
+            course_part = f";course={course_id}" if course_id else ""
+            payload = f"topic={topic}{course_part};score={score:.2f};feedback={feedback}"
             stats = self._assessments.setdefault(topic, {"scores": [], "avg": 0.6})
             stats["scores"].append(score)
             stats["avg"] = sum(stats["scores"]) / len(stats["scores"])
@@ -423,15 +583,16 @@ class TeacherBehavior(BaseBehavior):
             recipients = agent.directory.group_members(group, role=AgentRole.STUDENT)
             strategy = self._strategy.get(topic, self._default_strategy())
             lesson_plan = event.payload.get("lesson_plan", "")
-            review_note = self._review_note(topic)
+            concepts = event.payload.get("concepts", [])
+            review_note = self._review_note(concepts)
             instruction = self._lecture_instruction(strategy, lesson_plan, review_note)
             lecture = await self._compose(
                 agent,
                 instruction=instruction,
                 incoming=f"lecture:{topic};plan:{lesson_plan};review:{review_note}",
-                fallback=f"【{topic}】今天我们学习{topic}的基础概念。",
+                fallback=self._fallback_lecture(topic, lesson_plan, event.payload),
             )
-            return [
+            outbound = [
                 OutboundMessage(
                     receiver_id=student_id,
                     topic="lecture",
@@ -439,6 +600,16 @@ class TeacherBehavior(BaseBehavior):
                 )
                 for student_id in recipients
             ]
+            cold_call = self._select_cold_call(recipients)
+            if cold_call:
+                outbound.append(
+                    OutboundMessage(
+                        receiver_id=cold_call,
+                        topic="cold_call",
+                        content=f"{agent.profile.name} 提问：请简要复述刚才的要点。",
+                    )
+                )
+            return outbound
         if event.event_type == "office_hours":
             group = event.payload["group"]
             topic = event.payload["topic"]
@@ -468,7 +639,7 @@ class TeacherBehavior(BaseBehavior):
                 agent,
                 instruction=instruction,
                 incoming=f"summary:{topic};plan:{lesson_plan}",
-                fallback=f"【{topic}】今天的重点是掌握基础概念并能应用。",
+                fallback=self._fallback_summary(topic, lesson_plan, event.payload),
             )
             outbound = [
                 OutboundMessage(
@@ -478,39 +649,40 @@ class TeacherBehavior(BaseBehavior):
                 )
                 for student_id in recipients
             ]
-            quiz_question = await self._compose(
-                agent,
-                instruction="请出一道与主题相关的小测验题，问题简短，不要给出答案。",
-                incoming=f"quiz:{topic};plan:{lesson_plan}",
-                fallback=f"请简要说明{topic}的核心概念。",
-            )
-            quiz_question = self._prefix_topic(topic, quiz_question)
-            self._quiz_keywords[topic] = self._extract_keywords(topic, quiz_question)
-            for student_id in recipients:
-                outbound.append(
-                    OutboundMessage(
-                        receiver_id=student_id,
-                        topic="quiz",
-                        content=quiz_question,
-                    )
+            concepts = event.payload.get("concepts", [])
+            quiz_targets = self._select_quiz_concepts(concepts, limit=2)
+            for concept_id in quiz_targets:
+                concept_name = self._concept_name(concept_id)
+                quiz_question = await self._build_quiz_question(
+                    agent, concept_id, concept_name, lesson_plan
                 )
+                self._quiz_keywords[concept_id] = self._extract_keywords(
+                    concept_id, quiz_question
+                )
+                for student_id in recipients:
+                    outbound.append(
+                        OutboundMessage(
+                            receiver_id=student_id,
+                            topic="quiz",
+                            content=quiz_question,
+                        )
+                    )
             return outbound
         if event.event_type == "daily_test":
             group = event.payload["group"]
-            topics = event.payload.get("topics", [])
+            concepts = event.payload.get("concepts", [])
             recipients = agent.directory.group_members(group, role=AgentRole.STUDENT)
-            if not recipients or not topics:
+            if not recipients or not concepts:
                 return []
             outbound: List[OutboundMessage] = []
-            for topic in topics:
-                quiz_question = await self._compose(
-                    agent,
-                    instruction="请出一道与主题相关的小测验题，问题简短，不要给出答案。",
-                    incoming=f"quiz:{topic};purpose:daily_test",
-                    fallback=f"请简要说明{topic}的核心概念。",
+            for concept_id in concepts:
+                concept_name = self._concept_name(concept_id)
+                quiz_question = await self._build_quiz_question(
+                    agent, concept_id, concept_name, "昨日课程测验"
                 )
-                quiz_question = self._prefix_topic(topic, quiz_question)
-                self._quiz_keywords[topic] = self._extract_keywords(topic, quiz_question)
+                self._quiz_keywords[concept_id] = self._extract_keywords(
+                    concept_id, quiz_question
+                )
                 for student_id in recipients:
                     outbound.append(
                         OutboundMessage(
@@ -670,13 +842,80 @@ class TeacherBehavior(BaseBehavior):
             feedback = "回答已覆盖部分要点。"
         return score, feedback
 
-    def _review_note(self, topic: str) -> str:
-        stats = self._assessments.get(topic)
-        if not stats or not stats.get("scores"):
+    def _review_note(self, concepts: list[str]) -> str:
+        if not concepts:
             return ""
-        if stats["avg"] < 0.6:
-            return "上一轮测验平均分偏低，需要简要回顾上次内容"
+        weak = []
+        for concept_id in concepts:
+            stats = self._assessments.get(concept_id)
+            if stats and stats.get("scores") and stats["avg"] < 0.6:
+                weak.append(concept_id)
+        if weak:
+            return f"需回顾薄弱知识点: {', '.join(weak[:2])}"
         return ""
+
+    def _fallback_lecture(self, topic: str, lesson_plan: str, payload: dict) -> str:
+        concepts = payload.get("concepts", [])
+        concept_text = "、".join(concepts) if concepts else "暂无知识点"
+        if lesson_plan:
+            return f"【{topic}】{lesson_plan}。知识点: {concept_text}"
+        return f"【{topic}】本节课知识点: {concept_text}"
+
+    def _fallback_summary(self, topic: str, lesson_plan: str, payload: dict) -> str:
+        concepts = payload.get("concepts", [])
+        concept_text = "、".join(concepts) if concepts else "暂无知识点"
+        if lesson_plan:
+            return f"【{topic}】回顾: {lesson_plan}。知识点: {concept_text}"
+        return f"【{topic}】总结知识点: {concept_text}"
+
+    def _concept_name(self, concept_id: str) -> str:
+        if self._curriculum:
+            concept = self._curriculum._concepts.get(concept_id)
+            if concept:
+                return concept.name
+        return concept_id
+
+    def _course_for_concept(self, concept_id: str) -> Optional[str]:
+        if self._curriculum:
+            return self._curriculum.course_for_concept(concept_id)
+        return None
+
+    def _select_quiz_concepts(self, concepts: list[str], limit: int) -> list[str]:
+        if not concepts:
+            return []
+        sorted_concepts = sorted(
+            concepts,
+            key=lambda cid: self._assessments.get(cid, {}).get("avg", 0.6),
+        )
+        return sorted_concepts[: max(1, min(limit, len(sorted_concepts)))]
+
+    def _select_cold_call(self, recipients: list[str]) -> Optional[str]:
+        if not recipients:
+            return None
+        if not self._rng or self._rng.random() > 0.25:
+            return None
+        return self._rng.choice(recipients)
+
+    async def _build_quiz_question(
+        self, agent, concept_id: str, concept_name: str, context: str
+    ) -> str:
+        instruction = "请出一道针对知识点的小测验题，问题简短，不要给出答案。"
+        course_id = self._course_for_concept(concept_id) or ""
+        incoming = f"concept:{concept_id};name:{concept_name};course:{course_id};context:{context}"
+        fallback = ""
+        if self._curriculum:
+            template = self._curriculum.question_bank.question_for(concept_id, self._rng)
+            if template:
+                fallback = template
+        if not fallback:
+            fallback = f"请简要说明知识点 {concept_name} 的核心概念。"
+        question = await self._compose(
+            agent,
+            instruction=instruction,
+            incoming=incoming,
+            fallback=fallback,
+        )
+        return self._prefix_topic(concept_id, question)
 
     def _heuristic_score(
         self, answer: str, keywords: list[str]

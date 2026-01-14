@@ -1,6 +1,6 @@
 ﻿{
   "simulation": {
-    "ticks": 1680,
+    "ticks": 3360,
     "tick_seconds": 0.1
   },
   "runtime": {
@@ -11,6 +11,8 @@
     "restart_limit": 2,
     "restart_delay": 0.2
   },
+  "rng_seed": 42,
+
   "calendar": {
     "start_day": "Mon",
     "start_time": "12:00",
@@ -18,6 +20,88 @@
     "day_minutes": 240,
     "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
   },
+
+  "academic_calendar": {
+    "start_date": "2026-01-13",
+    "weeks": 16,
+    "holidays": ["2026-02-01"],
+    "makeup_days": ["2026-02-08"],
+    "exam_weeks": [8, 16],
+    "review_weeks": [7, 15]
+  },
+
+  "week_patterns": {
+    "A": {
+      "label": "A周",
+      "mode": "normal",
+      "extra_events": [
+        {
+          "weekday": "Fri",
+          "time": "16:30",
+          "type": "activity",
+          "activity": "homeroom",
+          "message": "班会：纪律与学习方法讨论（A周周五）"
+        }
+      ]
+    },
+    "B": {
+      "label": "B周",
+      "mode": "normal",
+      "extra_events": [
+        {
+          "weekday": "Wed",
+          "time": "15:40",
+          "type": "activity",
+          "activity": "club",
+          "message": "社团活动：编程社/数学社轮换（B周周三）"
+        }
+      ]
+    },
+    "review": {
+      "label": "复习周",
+      "mode": "review",
+      "extra_events": []
+    },
+    "exam": {
+      "label": "考试周",
+      "mode": "exam",
+      "extra_events": []
+    }
+  },
+
+  "semester_events": [
+    {
+      "id": "week_a",
+      "when": { "weeks": [1, 3, 5, 7, 9, 11, 13, 15] },
+      "set_week_type": { "name": "A", "label": "A Week", "mode": "normal" }
+    },
+    {
+      "id": "week_b",
+      "when": { "weeks": [2, 4, 6, 8, 10, 12, 14, 16] },
+      "set_week_type": { "name": "B", "label": "B Week", "mode": "normal" }
+    },
+    {
+      "id": "review_weeks",
+      "when": { "weeks": [7, 15] },
+      "set_week_type": { "name": "review", "label": "Review Week", "mode": "review" }
+    },
+    {
+      "id": "exam_weeks",
+      "when": { "weeks": [8, 16] },
+      "set_week_type": { "name": "exam", "label": "Exam Week", "mode": "exam" }
+    },
+    {
+      "id": "club",
+      "when": { "week_type": "B", "weekday": "Wed", "time": "15:40" },
+      "emit": { "type": "activity", "activity": "club", "message": "社团活动：项目练习/竞赛训练" }
+    },
+    {
+      "id": "homeroom",
+      "when": { "week_type": "A", "weekday": "Fri", "time": "16:30" },
+      "emit": { "type": "activity", "activity": "homeroom", "message": "班会：总结与下周计划" }
+    }
+  ],
+
   "routine": {
     "wake_time": "08:00",
     "breakfast_start": "08:20",
@@ -37,12 +121,393 @@
     "review_after_school": true,
     "after_school_review_offset": 10
   },
+
+  "curriculum": {
+    "courses": [
+      {
+        "id": "math",
+        "name": "数学",
+        "units": [
+          {
+            "id": "math.u1",
+            "name": "数与代数基础",
+            "lessons": [
+              {
+                "id": "math.l1",
+                "name": "代数式与变量",
+                "concepts": ["math.c1", "math.c2"]
+              },
+              {
+                "id": "math.l2",
+                "name": "一次方程与解方程",
+                "concepts": ["math.c3"]
+              }
+            ]
+          },
+          {
+            "id": "math.u2",
+            "name": "函数与图像入门",
+            "lessons": [
+              {
+                "id": "math.l3",
+                "name": "函数概念与对应关系",
+                "concepts": ["math.c4"]
+              },
+              {
+                "id": "math.l4",
+                "name": "一次函数与斜率直观",
+                "concepts": ["math.c5"]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cs",
+        "name": "计算机科学基础",
+        "units": [
+          {
+            "id": "cs.u1",
+            "name": "编程入门",
+            "lessons": [
+              {
+                "id": "cs.l1",
+                "name": "变量、输入输出与表达式",
+                "concepts": ["cs.c1", "cs.c2"]
+              },
+              {
+                "id": "cs.l2",
+                "name": "条件判断与分支逻辑",
+                "concepts": ["cs.c3"]
+              }
+            ]
+          },
+          {
+            "id": "cs.u2",
+            "name": "循环与数据组织",
+            "lessons": [
+              {
+                "id": "cs.l3",
+                "name": "循环：for/while 与计数思想",
+                "concepts": ["cs.c4"]
+              },
+              {
+                "id": "cs.l4",
+                "name": "网络与分层：从应用到传输",
+                "concepts": ["cs.c5"]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "concepts": [
+      {
+        "id": "math.c1",
+        "name": "变量与代数式",
+        "difficulty": 0.3,
+        "prerequisites": [],
+        "examples": [
+          "用x表示未知数：买3支笔每支2元，总价=3×2=6；若每支x元，总价=3x",
+          "代数式：2x+3表示“x的2倍再加3”"
+        ],
+        "exercises": [
+          "将“一个数的3倍减5”用代数式表示",
+          "当x=4时，计算2x+3的值"
+        ]
+      },
+      {
+        "id": "math.c2",
+        "name": "代数式化简与代入",
+        "difficulty": 0.4,
+        "prerequisites": ["math.c1"],
+        "examples": [
+          "化简：3x+2x=5x",
+          "代入：若x=2，则5x-1=9"
+        ],
+        "exercises": [
+          "化简：4a-2a+7",
+          "当a=-3时，计算4a-2a+7"
+        ]
+      },
+      {
+        "id": "math.c3",
+        "name": "一次方程与解法（移项）",
+        "difficulty": 0.5,
+        "prerequisites": ["math.c1"],
+        "examples": [
+          "解方程：2x+3=11 → 2x=8 → x=4",
+          "解方程：5x-2=3x+6 → 2x=8 → x=4"
+        ],
+        "exercises": [
+          "解：3x+5=20",
+          "解：7x-1=2x+14"
+        ]
+      },
+      {
+        "id": "math.c4",
+        "name": "函数概念（对应与变量）",
+        "difficulty": 0.6,
+        "prerequisites": ["math.c3"],
+        "examples": [
+          "y=2x：x每变化1，y变化2",
+          "将“路程=速度×时间”写成函数：s=vt"
+        ],
+        "exercises": [
+          "判断：y=1/x在x=0时是否有意义？",
+          "若y=2x+1，求x=3时的y"
+        ]
+      },
+      {
+        "id": "math.c5",
+        "name": "一次函数与斜率直观",
+        "difficulty": 0.6,
+        "prerequisites": ["math.c4"],
+        "examples": [
+          "y=kx+b：k决定倾斜程度，b决定与y轴交点",
+          "例：y=2x+1比y=x+1更“陡”"
+        ],
+        "exercises": [
+          "比较y=3x与y=x的斜率大小",
+          "若y=-2x+4，求x=1时y，并说明趋势（增/减）"
+        ]
+      },
+
+      {
+        "id": "cs.c1",
+        "name": "变量与数据类型（直观）",
+        "difficulty": 0.3,
+        "prerequisites": [],
+        "examples": [
+          "x = 3 表示把数字3存到变量x",
+          "name = \"Li\" 存字符串到name"
+        ],
+        "exercises": [
+          "写出两个变量：一个存年龄，一个存姓名",
+          "解释：变量和常量有什么区别？"
+        ]
+      },
+      {
+        "id": "cs.c2",
+        "name": "表达式与输入输出",
+        "difficulty": 0.4,
+        "prerequisites": ["cs.c1"],
+        "examples": [
+          "输入a,b，输出a+b",
+          "将摄氏度转华氏：f = c*9/5 + 32"
+        ],
+        "exercises": [
+          "写伪代码：输入半径r，输出圆面积",
+          "解释：为什么要把计算拆成步骤？"
+        ]
+      },
+      {
+        "id": "cs.c3",
+        "name": "条件判断：if/else",
+        "difficulty": 0.45,
+        "prerequisites": ["cs.c2"],
+        "examples": [
+          "如果分数>=60就“及格”，否则“不及格”",
+          "判断一个数是否为偶数：n%2==0"
+        ],
+        "exercises": [
+          "写伪代码：判断输入n是正/负/零",
+          "写伪代码：比较a和b，输出较大者"
+        ]
+      },
+      {
+        "id": "cs.c4",
+        "name": "循环：for/while 与计数思想",
+        "difficulty": 0.6,
+        "prerequisites": ["cs.c2"],
+        "examples": [
+          "for i in 1..10：累加求和",
+          "while 条件：直到输入正确为止"
+        ],
+        "exercises": [
+          "写伪代码：求1到n的和",
+          "写伪代码：统计一串输入里有多少个偶数"
+        ]
+      },
+      {
+        "id": "cs.c5",
+        "name": "网络分层概念（直观）",
+        "difficulty": 0.55,
+        "prerequisites": ["cs.c1"],
+        "examples": [
+          "类比寄快递：写地址/打包/运输/签收",
+          "OSI七层：先记住“应用/传输/网络/链路”的直观分工"
+        ],
+        "exercises": [
+          "举例：浏览器访问网页涉及哪两层最明显？为什么？",
+          "解释：分层的好处是什么（可替换、解耦）？"
+        ]
+      }
+    ]
+  },
+
+  "lesson_plans": {
+    "math.l1": {
+      "duration": 40,
+      "activity": "lecture_practice",
+      "concepts": [
+        {
+          "id": "math.c1",
+          "examples": ["用x表示未知数：如果每本书x元，买5本共5x元"],
+          "exercises": ["把“一个数的2倍加7”写成代数式并代入x=3计算"]
+        },
+        {
+          "id": "math.c2",
+          "examples": ["化简：2x+3x-4=5x-4"],
+          "exercises": ["化简并代入：3a+2a-1，a=2"]
+        }
+      ]
+    },
+    "math.l2": {
+      "duration": 40,
+      "activity": "lecture_drill",
+      "concepts": [
+        {
+          "id": "math.c3",
+          "examples": ["解：4x-7=9 → 4x=16 → x=4"],
+          "exercises": ["解：2x+8=18", "解：6x-3=2x+9"]
+        }
+      ]
+    },
+    "math.l3": {
+      "duration": 40,
+      "activity": "concept_building",
+      "concepts": [
+        {
+          "id": "math.c4",
+          "examples": ["函数像“机器”：输入x，输出y；规则固定"],
+          "exercises": ["若y=3x-2，求x=0,1,2时的y并观察变化"]
+        }
+      ]
+    },
+    "math.l4": {
+      "duration": 40,
+      "activity": "graph_intuition",
+      "concepts": [
+        {
+          "id": "math.c5",
+          "examples": ["比较y=2x与y=x：同样x增加1，y分别增加2和1"],
+          "exercises": ["判断y=-x+3的趋势，并计算x=0,1,2时y"]
+        }
+      ]
+    },
+
+    "cs.l1": {
+      "duration": 40,
+      "activity": "hands_on",
+      "concepts": [
+        {
+          "id": "cs.c1",
+          "examples": ["score = 95  # 变量存放分数"],
+          "exercises": ["写出3个变量：age, name, passed（布尔）并解释含义"]
+        },
+        {
+          "id": "cs.c2",
+          "examples": ["输入c，输出f=c*9/5+32（写成伪代码）"],
+          "exercises": ["写伪代码：输入a,b，输出(a+b)*(a-b)"]
+        }
+      ]
+    },
+    "cs.l2": {
+      "duration": 40,
+      "activity": "logic_practice",
+      "concepts": [
+        {
+          "id": "cs.c3",
+          "examples": ["if score>=60: pass else: fail"],
+          "exercises": ["写伪代码：输入n，输出“偶数/奇数”"]
+        }
+      ]
+    },
+    "cs.l3": {
+      "duration": 40,
+      "activity": "drill",
+      "concepts": [
+        {
+          "id": "cs.c4",
+          "examples": ["sum=0; for i=1..n: sum+=i"],
+          "exercises": ["写伪代码：求1..100所有偶数之和"]
+        }
+      ]
+    },
+    "cs.l4": {
+      "duration": 40,
+      "activity": "storytelling",
+      "concepts": [
+        {
+          "id": "cs.c5",
+          "examples": ["浏览器访问网页：应用层HTTP，传输层TCP（直观理解即可）"],
+          "exercises": ["解释：为什么要分层？给出两个好处"]
+        }
+      ]
+    }
+  },
+
+  "question_bank": {
+    "math.c1": [
+      "把“一个数的4倍减3”用代数式表示。",
+      "当x=5时，计算3x-2的值。",
+      "用代数式表示：小明有x元，买两本书各8元后还剩多少？"
+    ],
+    "math.c2": [
+      "化简：2a+3a-4a+7。",
+      "当a=-2时，计算5a+1。",
+      "化简并代入：3x+2x-1，x=4。"
+    ],
+    "math.c3": [
+      "解方程：2x+5=17。",
+      "解方程：7x-3=4x+9。",
+      "解方程：5(x-2)=15。"
+    ],
+    "math.c4": [
+      "若y=2x+1，求x=3时的y。",
+      "判断函数y=1/x在x=0时是否有定义，并说明原因。",
+      "用函数表示：总价p=单价a×数量n。"
+    ],
+    "math.c5": [
+      "比较y=3x与y=x的斜率大小，并解释含义。",
+      "若y=-2x+4，求x=1时y，并判断函数随x增大是增还是减。",
+      "说明一次函数y=kx+b中k的意义。"
+    ],
+
+    "cs.c1": [
+      "用一句话解释：变量是什么？",
+      "写出两个变量：一个存温度，一个存姓名，并举例赋值。",
+      "解释：为什么需要变量而不是只用常量？"
+    ],
+    "cs.c2": [
+      "写伪代码：输入a,b，输出a+b。",
+      "写伪代码：输入c（摄氏度），输出f（华氏度）。",
+      "解释：把任务拆成步骤对程序有什么好处？"
+    ],
+    "cs.c3": [
+      "写伪代码：判断输入n是否为偶数。",
+      "写伪代码：输入分数score，输出“及格/不及格”。",
+      "写伪代码：输入a,b，输出较大值。"
+    ],
+    "cs.c4": [
+      "写伪代码：求1到n的和。",
+      "写伪代码：统计1..100中能被3整除的个数。",
+      "解释：for和while各适合什么场景（直观描述即可）。"
+    ],
+    "cs.c5": [
+      "举例说明：分层设计有什么好处？",
+      "浏览器访问网页时，你认为哪一层最接近用户？为什么？",
+      "用快递类比解释：为什么需要“传输层”的概念？"
+    ]
+  },
+
   "timetable": [
     {
       "group": "class_a",
       "teacher_id": "t01",
       "topic": "数学",
-      "lesson_plan": "函数与极限，常见题型解析",
+      "course_id": "math",
       "start_time": "08:50",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -50,8 +515,8 @@
     {
       "group": "class_a",
       "teacher_id": "t01",
-      "topic": "线性代数",
-      "lesson_plan": "矩阵运算与线性方程组",
+      "topic": "数学",
+      "course_id": "math",
       "start_time": "09:40",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -59,8 +524,8 @@
     {
       "group": "class_a",
       "teacher_id": "t01",
-      "topic": "概率论",
-      "lesson_plan": "随机变量与常见分布",
+      "topic": "数学",
+      "course_id": "math",
       "start_time": "10:30",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -68,8 +533,8 @@
     {
       "group": "class_a",
       "teacher_id": "t01",
-      "topic": "物理",
-      "lesson_plan": "牛顿第二定律与受力分析",
+      "topic": "数学",
+      "course_id": "math",
       "start_time": "14:00",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -77,8 +542,8 @@
     {
       "group": "class_a",
       "teacher_id": "t01",
-      "topic": "微积分",
-      "lesson_plan": "导数应用与极值问题",
+      "topic": "数学",
+      "course_id": "math",
       "start_time": "14:50",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -86,8 +551,8 @@
     {
       "group": "class_a",
       "teacher_id": "t01",
-      "topic": "统计",
-      "lesson_plan": "抽样与置信区间",
+      "topic": "数学",
+      "course_id": "math",
       "start_time": "15:40",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -96,7 +561,7 @@
       "group": "class_a",
       "teacher_id": "t01",
       "topic": "数学",
-      "lesson_plan": "积分基础与面积计算",
+      "course_id": "math",
       "start_time": "16:30",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -104,17 +569,18 @@
     {
       "group": "class_a",
       "teacher_id": "t01",
-      "topic": "数学建模",
-      "lesson_plan": "建模流程与案例分析",
+      "topic": "数学",
+      "course_id": "math",
       "start_time": "17:20",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
     },
+
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "计算机",
-      "lesson_plan": "变量与循环回顾",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "08:50",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -122,8 +588,8 @@
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "数据结构",
-      "lesson_plan": "线性表与栈队列",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "09:40",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -131,8 +597,8 @@
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "算法",
-      "lesson_plan": "复杂度与基础排序",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "10:30",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -140,8 +606,8 @@
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "操作系统",
-      "lesson_plan": "进程与线程基础",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "14:00",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -149,8 +615,8 @@
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "数据库",
-      "lesson_plan": "SQL 基础查询",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "14:50",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -158,8 +624,8 @@
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "计算机网络",
-      "lesson_plan": "TCP/IP 基础与分层",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "15:40",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -167,8 +633,8 @@
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "软件工程",
-      "lesson_plan": "需求分析与设计方法",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "16:30",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
@@ -176,13 +642,14 @@
     {
       "group": "class_b",
       "teacher_id": "t02",
-      "topic": "人工智能",
-      "lesson_plan": "搜索算法与简单模型",
+      "topic": "计算机基础",
+      "course_id": "cs",
       "start_time": "17:20",
       "duration": 40,
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
     }
   ],
+
   "llm": {
     "enabled": true,
     "provider": "deepseek",
@@ -194,182 +661,273 @@
     "retry_count": 2,
     "retry_backoff": 0.5
   },
+
   "prompts": {
-    "student": "你是浙大学生，请用中文回答，保持1到2句话。",
-    "teacher": "你是浙大老师，请用中文回答，保持1到2句话。"
+    "student": "你是一名真实的中学生/高中生智能体。你有性格、情绪、精力、压力和人际关系。你会在课堂上做出自然行为：认真听讲、走神、提问、和同桌小声交流、做笔记、在课间回顾或玩手机。你的输出要短、口语化、符合你的persona，避免重复。遇到不确定时以‘合理猜测’做行动。",
+    "teacher": "你是一名真实教师智能体。你要按教案讲解具体知识点（concept），会提问、点名、布置练习、收集反馈并总结。你无法全知全能：只能基于你能看到/听到的线索判断纪律问题。你会根据班级测验与课堂反馈调整节奏：必要时复习上一节薄弱知识点。输出要简洁、像真实老师。"
   },
+
   "agent_defaults": {
     "llm": {
       "tools": ["get_time", "get_schedule", "get_recent_memory"]
     },
     "persona": {
-      "traits": ["好奇"],
-      "tone": "礼貌",
-      "interests": ["校园生活"],
-      "bio": "模拟校园中的一名参与者。",
+      "traits": ["普通", "愿意配合"],
+      "tone": "自然口语",
+      "interests": ["学习", "朋友聊天", "游戏"],
+      "bio": "性格比较普通，学习状态随当天心情与精力变化。",
       "engagement": 0.6,
       "confidence": 0.6,
       "collaboration": 0.6
     }
   },
+
   "persona_templates": {
     "analytical": {
-      "traits": ["理性", "条理清晰"],
-      "tone": "沉稳",
-      "interests": ["问题求解"],
-      "bio": "习惯循序渐进思考。",
+      "traits": ["理性", "喜欢推理", "认真"],
+      "tone": "克制、条理清晰",
+      "interests": ["数学题", "逻辑", "解谜"],
+      "bio": "倾向于先理解原理再做题，遇到不懂会追问细节。",
       "engagement": 0.55,
       "confidence": 0.7,
       "collaboration": 0.5
     },
     "creative": {
-      "traits": ["有创意", "想象力强"],
+      "traits": ["想象力强", "发散思维", "爱表达"],
       "tone": "活泼",
-      "interests": ["设计", "表达"],
-      "bio": "经常带来新想法。",
+      "interests": ["写作", "绘画", "创意编程"],
+      "bio": "更喜欢用例子和类比理解知识，课堂参与积极但偶尔跑题。",
       "engagement": 0.75,
       "confidence": 0.65,
       "collaboration": 0.7
     },
     "quiet": {
-      "traits": ["安静", "善于观察"],
-      "tone": "温和",
-      "interests": ["阅读"],
-      "bio": "偏好简洁的记录方式。",
+      "traits": ["安静", "谨慎", "慢热"],
+      "tone": "简短、克制",
+      "interests": ["阅读", "独处", "安静的活动"],
+      "bio": "不爱主动发言，但会默默做笔记；被点名会紧张。",
       "engagement": 0.45,
       "confidence": 0.45,
       "collaboration": 0.5
     },
     "leader": {
-      "traits": ["自信", "乐于支持"],
-      "tone": "清晰",
-      "interests": ["团队合作"],
-      "bio": "擅长引导小组讨论。",
+      "traits": ["带头", "外向", "组织能力强"],
+      "tone": "自信、直接",
+      "interests": ["竞赛", "社团", "团队项目"],
+      "bio": "在同学中有影响力，容易带动讨论；有时也会带节奏起哄。",
       "engagement": 0.8,
       "confidence": 0.85,
       "collaboration": 0.85
     }
   },
+
   "behavior": {
-    "student_question_prob": 0.7,
-    "office_hours_question_prob": 0.7,
-    "student_discuss_prob": 0.5,
+    "student_question_prob": 0.55,
+    "office_hours_question_prob": 0.65,
+    "student_discuss_prob": 0.45,
     "peer_discuss_prob": 0.6,
-    "peer_reply_prob": 0.5
+    "peer_reply_prob": 0.55,
+    "student_noise_prob": 0.1
   },
+
   "class_controller": {
     "lecture_ticks": 4,
     "question_ticks": 1,
     "group_ticks": 1,
     "summary_ticks": 1
   },
+
+  "social_graph": {
+    "friends": [
+      ["s01", "s02"],
+      ["s07", "s08"],
+      ["s09", "s10"]
+    ],
+    "conflicts": [
+      ["s03", "s04"]
+    ],
+    "seatmates": [
+      ["s05", "s06"],
+      ["s02", "s03"]
+    ]
+  },
+
   "agents": [
     {
       "id": "s01",
-      "name": "Student01",
+      "name": "林舟",
       "role": "student",
       "group": "class_a",
       "llm": { "enabled": true },
-      "persona": { "traits": ["好奇", "理性"], "tone": "沉稳", "interests": ["数学"], "bio": "喜欢解题。"}
+      "persona": {
+        "traits": ["理性", "自律"],
+        "tone": "冷静",
+        "interests": ["数学题", "解谜"],
+        "bio": "做题速度快，喜欢追问‘为什么’，不太爱闲聊。"
+      }
     },
     {
       "id": "s02",
-      "name": "Student02",
+      "name": "陈果",
       "role": "student",
       "group": "class_a",
       "llm": { "enabled": true },
-      "persona": { "traits": ["友好", "健谈"], "tone": "热情", "interests": ["项目"], "bio": "喜欢小组讨论。"}
+      "persona": {
+        "traits": ["外向", "爱表达"],
+        "tone": "活泼",
+        "interests": ["朋友聊天", "短视频"],
+        "bio": "课堂上容易插话，但也愿意参与讨论。"
+      }
     },
     {
       "id": "s03",
-      "name": "Student03",
+      "name": "许言",
       "role": "student",
       "group": "class_a",
       "llm": { "enabled": true },
-      "persona": { "traits": ["安静", "细致"], "tone": "温和", "interests": ["阅读"], "bio": "偏好简洁笔记。"}
+      "persona": {
+        "traits": ["敏感", "要面子"],
+        "tone": "有点防御",
+        "interests": ["篮球", "游戏"],
+        "bio": "被点名容易紧张，偶尔装懂，和某些同学不对付。"
+      }
     },
     {
       "id": "s04",
-      "name": "Student04",
+      "name": "宋然",
       "role": "student",
       "group": "class_a",
       "llm": { "enabled": true },
-      "persona": { "traits": ["有创意"], "tone": "活泼", "interests": ["设计"], "bio": "经常提出新点子。"}
+      "persona": {
+        "traits": ["对抗", "不服管"],
+        "tone": "直接",
+        "interests": ["游戏", "梗图"],
+        "bio": "讨厌被管，容易顶嘴，但遇到真感兴趣的内容也会认真。"
+      }
     },
     {
       "id": "s05",
-      "name": "Student05",
+      "name": "周清",
       "role": "student",
       "group": "class_a",
       "llm": { "enabled": true },
-      "persona": { "traits": ["务实"], "tone": "直接", "interests": ["工具"], "bio": "关注实现细节。"}
+      "persona": {
+        "traits": ["安静", "认真"],
+        "tone": "简短",
+        "interests": ["阅读", "做笔记"],
+        "bio": "很少发言，习惯把内容记全，课后会自己复盘。"
+      }
     },
     {
       "id": "s06",
-      "name": "Student06",
+      "name": "吴昊",
       "role": "student",
       "group": "class_a",
       "llm": { "enabled": true },
-      "persona": { "traits": ["好奇"], "tone": "礼貌", "interests": ["系统"], "bio": "喜欢问系统相关问题。"}
+      "persona": {
+        "traits": ["随和", "容易分心"],
+        "tone": "随意",
+        "interests": ["篮球", "同学八卦"],
+        "bio": "学习状态起伏大，坐同桌时容易被带着聊天。"
+      }
     },
+
     {
       "id": "s07",
-      "name": "Student07",
+      "name": "白筱",
       "role": "student",
       "group": "class_b",
       "llm": { "enabled": true },
-      "persona": { "traits": ["有活力"], "tone": "积极", "interests": ["计算机"], "bio": "喜欢动手演示。"}
+      "persona": {
+        "traits": ["创意", "发散"],
+        "tone": "活泼",
+        "interests": ["画画", "创意编程"],
+        "bio": "喜欢用类比理解编程，常提出奇怪但有启发的问题。"
+      }
     },
     {
       "id": "s08",
-      "name": "Student08",
+      "name": "沈拓",
       "role": "student",
       "group": "class_b",
       "llm": { "enabled": true },
-      "persona": { "traits": ["怀疑精神"], "tone": "中立", "interests": ["理论"], "bio": "喜欢质疑假设。"}
+      "persona": {
+        "traits": ["稳重", "责任感强"],
+        "tone": "认真",
+        "interests": ["竞赛", "项目"],
+        "bio": "做事靠谱，愿意帮助同学，但对低效聊天不耐烦。"
+      }
     },
     {
       "id": "s09",
-      "name": "Student09",
+      "name": "方晴",
       "role": "student",
       "group": "class_b",
       "llm": { "enabled": true },
-      "persona": { "traits": ["乐于支持"], "tone": "友善", "interests": ["团队合作"], "bio": "经常鼓励同伴。"}
+      "persona": {
+        "traits": ["领导力", "好胜"],
+        "tone": "自信",
+        "interests": ["竞赛", "社团"],
+        "bio": "在班里说话有分量，能带动讨论也能带节奏起哄。"
+      }
     },
     {
       "id": "s10",
-      "name": "Student10",
+      "name": "丁一",
       "role": "student",
       "group": "class_b",
       "llm": { "enabled": true },
-      "persona": { "traits": ["专注"], "tone": "认真", "interests": ["考试"], "bio": "喜欢追问细节。"}
+      "persona": {
+        "traits": ["慢热", "谨慎"],
+        "tone": "轻声",
+        "interests": ["看书", "独处"],
+        "bio": "不爱出头，遇到问题会憋着，写代码时反而很专注。"
+      }
     },
+
     {
       "id": "t01",
-      "name": "Teacher01",
+      "name": "马老师",
       "role": "teacher",
       "group": "class_a",
       "llm": { "enabled": true },
-      "persona": { "traits": ["结构化"], "tone": "专业", "interests": ["数学"], "bio": "擅长循序渐进讲解。"}
+      "persona": {
+        "traits": ["讲理", "有耐心"],
+        "tone": "沉稳",
+        "interests": ["教学设计", "解题方法"],
+        "bio": "喜欢用例题带思路，发现学生不懂会及时回头讲。"
+      }
     },
     {
       "id": "t02",
-      "name": "Teacher02",
+      "name": "刘老师",
       "role": "teacher",
       "group": "class_b",
       "llm": { "enabled": true },
-      "persona": { "traits": ["务实"], "tone": "清晰", "interests": ["计算机"], "bio": "注重例子讲解。"}
+      "persona": {
+        "traits": ["严谨", "效率导向"],
+        "tone": "干脆",
+        "interests": ["编程训练", "项目管理"],
+        "bio": "节奏快，强调动手练习，课堂会随机点名检查理解。"
+      }
     },
     {
       "id": "t03",
-      "name": "Teacher03",
+      "name": "班主任周老师",
       "role": "teacher",
       "group": "all",
       "llm": { "enabled": true },
-      "persona": { "traits": ["支持型"], "tone": "亲切", "interests": ["项目"], "bio": "鼓励学生提问。"}
+      "persona": {
+        "traits": ["严格", "重视纪律"],
+        "tone": "严肃但不刻薄",
+        "interests": ["班级管理", "学生成长"],
+        "bio": "对纪律敏感，但会给改正机会；擅长在班会做总结。"
+      }
     }
   ],
+
   "schedule": [],
+
   "api": {
     "host": "127.0.0.1",
     "port": 8010

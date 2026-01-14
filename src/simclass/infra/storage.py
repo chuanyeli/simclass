@@ -114,6 +114,15 @@ class SQLiteMemoryStore:
                 )
                 """
             )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sim_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
             self._conn.commit()
 
     def record_message(self, message: Message) -> None:
@@ -353,6 +362,39 @@ class SQLiteMemoryStore:
             )
             for row in rows
         ]
+
+    def get_last_tick(self) -> int:
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                """
+                SELECT value
+                FROM sim_state
+                WHERE key = 'last_tick'
+                """,
+            )
+            row = cursor.fetchone()
+        if not row:
+            return 1
+        try:
+            return max(1, int(row[0]))
+        except (TypeError, ValueError):
+            return 1
+
+    def set_last_tick(self, tick: int) -> None:
+        timestamp = time.time()
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO sim_state (key, value, updated_at)
+                VALUES ('last_tick', ?, ?)
+                ON CONFLICT(key)
+                DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+                """,
+                (str(int(tick)), timestamp),
+            )
+            self._conn.commit()
 
     def close(self) -> None:
         with self._lock:

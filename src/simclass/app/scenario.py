@@ -53,6 +53,7 @@ class BehaviorConfig:
     student_discuss_prob: float
     peer_discuss_prob: float
     peer_reply_prob: float
+    student_noise_prob: float
 
 
 @dataclass(frozen=True)
@@ -104,10 +105,37 @@ class TimetableEntry:
     group: str
     teacher_id: str
     topic: str
+    course_id: str
     lesson_plan: str
     start_time: str
     duration: int
     weekdays: List[str]
+
+
+@dataclass(frozen=True)
+class AcademicCalendarConfig:
+    start_date: str
+    weeks: int
+    holidays: List[str]
+    makeup_days: List[str]
+    exam_weeks: List[int]
+    review_weeks: List[int]
+
+
+@dataclass(frozen=True)
+class WeekPatternConfig:
+    name: str
+    label: str
+    mode: str
+    extra_events: List[dict]
+
+
+@dataclass(frozen=True)
+class CurriculumConfig:
+    courses: List[dict]
+    concepts: List[dict]
+    lesson_plans: dict
+    question_bank: dict
 
 
 @dataclass(frozen=True)
@@ -132,6 +160,13 @@ class Scenario:
     calendar: Optional[CalendarConfig]
     routine: Optional[RoutineConfig]
     timetable: List[TimetableEntry]
+    academic_calendar: Optional[AcademicCalendarConfig]
+    week_patterns: List[WeekPatternConfig]
+    week_plan: List[str]
+    semester_events: List[dict]
+    curriculum: Optional[CurriculumConfig]
+    rng_seed: int
+    social_graph: dict
 
     def events_for_tick(self, tick: int) -> List[ScenarioEvent]:
         return [event for event in self.events if event.tick == tick]
@@ -151,6 +186,14 @@ def load_scenario(path: Path) -> Scenario:
     calendar_cfg = raw.get("calendar")
     routine_cfg = raw.get("routine")
     timetable_cfg = raw.get("timetable", [])
+    academic_cfg = raw.get("academic_calendar")
+    week_patterns_cfg = raw.get("week_patterns", {})
+    week_plan_cfg = raw.get("week_plan", [])
+    semester_events_cfg = raw.get("semester_events", [])
+    curriculum_cfg = raw.get("curriculum")
+    lesson_plans_cfg = raw.get("lesson_plans", {})
+    question_bank_cfg = raw.get("question_bank", {})
+    social_graph_cfg = raw.get("social_graph", {})
     prompts = raw.get("prompts", {})
     agent_defaults = raw.get("agent_defaults", {})
     default_agent_llm = agent_defaults.get("llm", {})
@@ -242,6 +285,7 @@ def load_scenario(path: Path) -> Scenario:
         student_discuss_prob=float(behavior_cfg.get("student_discuss_prob", 0.5)),
         peer_discuss_prob=float(behavior_cfg.get("peer_discuss_prob", 0.6)),
         peer_reply_prob=float(behavior_cfg.get("peer_reply_prob", 0.5)),
+        student_noise_prob=float(behavior_cfg.get("student_noise_prob", 0.08)),
     )
     class_controller = ClassControllerConfig(
         lecture_ticks=int(controller_cfg.get("lecture_ticks", 1)),
@@ -288,11 +332,40 @@ def load_scenario(path: Path) -> Scenario:
                 group=str(entry.get("group", "all")),
                 teacher_id=str(entry.get("teacher_id", "")),
                 topic=str(entry.get("topic", "")),
+                course_id=str(entry.get("course_id", entry.get("topic", ""))),
                 lesson_plan=str(entry.get("lesson_plan", "")),
                 start_time=str(entry.get("start_time", "08:50")),
                 duration=int(entry.get("duration", 40)),
                 weekdays=list(entry.get("weekdays", ["Mon", "Tue", "Wed", "Thu", "Fri"])),
             )
+        )
+    academic_calendar = None
+    if academic_cfg:
+        academic_calendar = AcademicCalendarConfig(
+            start_date=str(academic_cfg.get("start_date", "2026-01-13")),
+            weeks=int(academic_cfg.get("weeks", 16)),
+            holidays=list(academic_cfg.get("holidays", [])),
+            makeup_days=list(academic_cfg.get("makeup_days", [])),
+            exam_weeks=list(academic_cfg.get("exam_weeks", [])),
+            review_weeks=list(academic_cfg.get("review_weeks", [])),
+        )
+    week_patterns: List[WeekPatternConfig] = []
+    for name, cfg in week_patterns_cfg.items():
+        week_patterns.append(
+            WeekPatternConfig(
+                name=name,
+                label=str(cfg.get("label", name)),
+                mode=str(cfg.get("mode", "normal")),
+                extra_events=list(cfg.get("extra_events", [])),
+            )
+        )
+    curriculum = None
+    if curriculum_cfg:
+        curriculum = CurriculumConfig(
+            courses=list(curriculum_cfg.get("courses", [])),
+            concepts=list(curriculum_cfg.get("concepts", [])),
+            lesson_plans=dict(lesson_plans_cfg),
+            question_bank=dict(question_bank_cfg),
         )
     return Scenario(
         agent_specs=agent_specs,
@@ -308,4 +381,11 @@ def load_scenario(path: Path) -> Scenario:
         calendar=calendar,
         routine=routine,
         timetable=timetable,
+        academic_calendar=academic_calendar,
+        week_patterns=week_patterns,
+        week_plan=list(week_plan_cfg),
+        semester_events=list(semester_events_cfg),
+        curriculum=curriculum,
+        rng_seed=int(raw.get("rng_seed", 42)),
+        social_graph=dict(social_graph_cfg),
     )

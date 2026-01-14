@@ -1,9 +1,12 @@
-const state = {
+﻿const state = {
   agents: [],
   templates: {},
   events: [],
   knowledge: [],
   timetable: [],
+  curriculum: [],
+  semester: null,
+  simTime: null,
   lastTimestamp: 0,
   wsConnected: false,
   view: "control",
@@ -39,6 +42,14 @@ const seatGrid = document.getElementById("seat-grid");
 const newTemplate = document.getElementById("new-template");
 const knowledgeList = document.getElementById("knowledge-list");
 const timetableList = document.getElementById("timetable-list");
+const curriculumList = document.getElementById("curriculum-list");
+const examWeeks = document.getElementById("exam-weeks");
+const examPill = document.getElementById("exam-pill");
+const examCurrent = document.getElementById("exam-current");
+const startModal = document.getElementById("start-modal");
+const startContinue = document.getElementById("start-continue");
+const startReset = document.getElementById("start-reset");
+const startCancel = document.getElementById("start-cancel");
 
 const btnStart = document.getElementById("btn-start");
 const btnPause = document.getElementById("btn-pause");
@@ -51,6 +62,8 @@ const btnAddAgent = document.getElementById("btn-add-agent");
 const btnResetScene = document.getElementById("btn-reset-scene");
 const btnRefreshKnowledge = document.getElementById("btn-refresh-knowledge");
 const btnRefreshTimetable = document.getElementById("btn-refresh-timetable");
+const btnRefreshCurriculum = document.getElementById("btn-refresh-curriculum");
+const btnRefreshSemester = document.getElementById("btn-refresh-semester");
 
 function splitComma(value) {
   return value
@@ -93,6 +106,10 @@ function displayTopic(topic) {
     quiz: "测验",
     quiz_answer: "作答",
     quiz_score: "评分",
+    noise: "课堂噪声",
+    discipline: "管理",
+    cold_call: "点名",
+    review: "回顾",
     note: "记录",
   };
   return mapping[topic] || topic;
@@ -113,6 +130,10 @@ const topicStatus = {
   quiz: "测验",
   quiz_answer: "作答",
   quiz_score: "评分",
+  noise: "走神",
+  discipline: "提醒",
+  cold_call: "点名",
+  review: "回顾",
 };
 
 const topicAction = {
@@ -127,6 +148,10 @@ const topicAction = {
   quiz: "出题",
   quiz_answer: "回答",
   quiz_score: "评分",
+  noise: "走神",
+  discipline: "管理",
+  cold_call: "提问",
+  review: "复盘",
 };
 
 function defaultStatus(role) {
@@ -176,8 +201,10 @@ async function fetchStatus() {
   statusCount.textContent = `${data.agent_count || 0}`;
   if (statusTime) {
     const simTime = data.sim_time;
+    state.simTime = simTime || null;
+    renderExam();
     statusTime.textContent = simTime
-      ? `${simTime.weekday} ${simTime.clock_time}`
+      ? `${simTime.weekday} ${simTime.clock_time} ${simTime.date || ""} ${simTime.week_type || ""}`.trim()
       : "--";
   }
   if (data.running) {
@@ -463,6 +490,146 @@ function renderTimetable() {
         });
       timetableList.appendChild(card);
     });
+}
+
+function renderCurriculum() {
+  if (!curriculumList) {
+    return;
+  }
+  curriculumList.innerHTML = "";
+  if (!state.curriculum.length) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无课程数据。";
+    curriculumList.appendChild(empty);
+    return;
+  }
+  state.curriculum.forEach((course) => {
+    const card = document.createElement("div");
+    card.className = "curriculum-card";
+    const title = document.createElement("div");
+    title.className = "curriculum-title";
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = course.name || course.course_id || "课程";
+    const progress =
+      course.progress === null || course.progress === undefined
+        ? null
+        : Math.max(0, Math.min(100, Math.round(course.progress * 100)));
+    const progressSpan = document.createElement("span");
+    progressSpan.textContent = progress === null ? "--" : `${progress}%`;
+    title.appendChild(nameSpan);
+    title.appendChild(progressSpan);
+    card.appendChild(title);
+
+    const bar = document.createElement("div");
+    bar.className = "curriculum-bar";
+    const fill = document.createElement("div");
+    fill.className = "curriculum-fill";
+    fill.style.width = progress === null ? "0%" : `${progress}%`;
+    bar.appendChild(fill);
+    card.appendChild(bar);
+
+    (course.concepts || []).forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "curriculum-row";
+      const label = document.createElement("span");
+      label.textContent = item.name || item.id || "知识点";
+      const score =
+        item.score === null || item.score === undefined
+          ? null
+          : Math.max(0, Math.min(100, Math.round(item.score * 100)));
+      const value = document.createElement("span");
+      value.textContent = score === null ? "--" : `${score}%`;
+      row.appendChild(label);
+      row.appendChild(value);
+      const cbar = document.createElement("div");
+      cbar.className = "curriculum-bar";
+      const cfill = document.createElement("div");
+      cfill.className = "curriculum-fill";
+      cfill.style.width = score === null ? "0%" : `${score}%`;
+      cbar.appendChild(cfill);
+      card.appendChild(row);
+      card.appendChild(cbar);
+    });
+
+    curriculumList.appendChild(card);
+  });
+}
+
+async function fetchCurriculumProgress() {
+  const res = await fetch("/curriculum-progress");
+  const data = await res.json();
+  state.curriculum = Array.isArray(data.courses) ? data.courses : [];
+  renderCurriculum();
+}
+
+function renderExam() {
+  if (!examWeeks || !examPill || !examCurrent) {
+    return;
+  }
+  const simTime = state.simTime || {};
+  const weekType = simTime.week_type || "--";
+  const weekMode = simTime.week_mode || "";
+  examCurrent.textContent = weekType === "--" ? "--" : `当前：${weekType}`;
+  if (weekMode === "exam") {
+    examPill.textContent = "考试周";
+    examPill.classList.add("exam");
+  } else if (weekMode === "review") {
+    examPill.textContent = "复习周";
+    examPill.classList.remove("exam");
+  } else {
+    examPill.textContent = "教学周";
+    examPill.classList.remove("exam");
+  }
+  examWeeks.innerHTML = "";
+  const weeks =
+    state.semester && Array.isArray(state.semester.exam_weeks)
+      ? state.semester.exam_weeks
+      : [];
+  if (!weeks.length) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无考试周配置。";
+    examWeeks.appendChild(empty);
+    return;
+  }
+  weeks.forEach((week) => {
+    const chip = document.createElement("div");
+    chip.className = "exam-week";
+    chip.textContent = `第${week}周`;
+    examWeeks.appendChild(chip);
+  });
+}
+
+async function fetchSemester() {
+  const res = await fetch("/semester");
+  const data = await res.json();
+  state.semester = data || {};
+  renderExam();
+}
+
+function showStartModal() {
+  if (!startModal) {
+    return;
+  }
+  startModal.classList.remove("hidden");
+}
+
+function hideStartModal() {
+  if (!startModal) {
+    return;
+  }
+  startModal.classList.add("hidden");
+}
+
+async function startSimulation(mode) {
+  await fetch("/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+  hideStartModal();
+  await fetchStatus();
 }
 
 async function fetchTimetable() {
@@ -804,8 +971,7 @@ function animateClassroom() {
 }
 
 btnStart.onclick = async () => {
-  await fetch("/start", { method: "POST" });
-  await fetchStatus();
+  showStartModal();
 };
 
 btnPause.onclick = async () => {
@@ -830,6 +996,24 @@ btnReload.onclick = async () => {
   feedList.innerHTML = "";
   await fetchStatus();
 };
+
+if (startContinue) {
+  startContinue.onclick = async () => {
+    await startSimulation("continue");
+  };
+}
+
+if (startReset) {
+  startReset.onclick = async () => {
+    await startSimulation("reset");
+  };
+}
+
+if (startCancel) {
+  startCancel.onclick = () => {
+    hideStartModal();
+  };
+}
 
 btnRefresh.onclick = async () => {
   state.lastTimestamp = 0;
@@ -862,6 +1046,18 @@ if (btnRefreshTimetable) {
   };
 }
 
+
+if (btnRefreshCurriculum) {
+  btnRefreshCurriculum.onclick = async () => {
+    await fetchCurriculumProgress();
+  };
+}
+
+if (btnRefreshSemester) {
+  btnRefreshSemester.onclick = async () => {
+    await fetchSemester();
+  };
+}
 filterOutbound.onchange = () => {
   state.filters.outbound = filterOutbound.checked;
   renderFeed();
@@ -888,13 +1084,26 @@ async function bootstrap() {
   await fetchMessages();
   await fetchKnowledge();
   await fetchTimetable();
+  await fetchCurriculumProgress();
+  await fetchSemester();
   connectWebSocket();
   setInterval(fetchStatus, 1500);
   setInterval(fetchMessages, 1500);
   setInterval(fetchKnowledge, 3000);
+  setInterval(fetchCurriculumProgress, 6000);
+  setInterval(fetchSemester, 12000);
   setInterval(animateClassroom, 1200);
   setView("control");
   setRosterTab("roster");
 }
 
 bootstrap();
+
+
+
+
+
+
+
+
+

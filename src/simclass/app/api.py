@@ -11,6 +11,8 @@ from simclass.app.config import resolve_paths
 from simclass.app.llm_factory import LLMFactory
 from simclass.app.scenario import load_scenario
 from simclass.core.simulation import Simulation
+from simclass.core.calendar import DailyRoutine, SimClock, Timetable
+from simclass.core.schedule import ScheduleGenerator, WeekPattern, build_academic_calendar
 from simclass.core.tools import build_default_tools
 from simclass.infra import SQLiteMemoryStore, configure_logging, load_dotenv
 
@@ -81,7 +83,7 @@ class SimulationService:
         self._hub = hub
         self._logger = logging.getLogger("api.service")
 
-    async def start(self) -> ApiResponse:
+    async def start(self, mode: Optional[str] = None) -> ApiResponse:
         async with self._lock:
             if self._task and not self._task.done():
                 return ApiResponse(status="running", detail="simulation already running")
@@ -89,10 +91,16 @@ class SimulationService:
             store = SQLiteMemoryStore(
                 self._paths.data_path, on_message_event=self._hub.publish
             )
+            start_tick = 1
+            if mode == "continue":
+                last_tick = store.get_last_tick()
+                start_tick = max(1, last_tick + 1)
+            else:
+                store.set_last_tick(1)
             llm_factory = LLMFactory(scenario.llm)
             tool_registry = build_default_tools()
             self._simulation = Simulation(
-                scenario, store, llm_factory, tool_registry
+                scenario, store, llm_factory, tool_registry, start_tick=start_tick
             )
             self._task = asyncio.create_task(self._simulation.run())
             return ApiResponse(status="started")
@@ -146,6 +154,94 @@ class SimulationService:
     def list_timetable(self) -> list[dict]:
         config = self.load_config()
         return config.get("timetable", [])
+
+    def semester_overview(self) -> dict:
+        scenario = load_scenario(self._paths.config_path)
+        if not scenario.calendar or not scenario.academic_calendar or not scenario.routine:
+            return {"weeks": [], "exam_weeks": [], "review_weeks": [], "source": "none"}
+        clock = SimClock(scenario.calendar)
+        routine = DailyRoutine(clock, scenario.routine, scenario.calendar.weekdays)
+        timetable = Timetable(clock, scenario.timetable)
+        calendar = build_academic_calendar(scenario.academic_calendar)
+        week_patterns = [
+            WeekPattern(
+                name=pattern.name,
+                label=pattern.label,
+                mode=pattern.mode,
+                extra_events=pattern.extra_events,
+            )
+            for pattern in scenario.week_patterns
+        ]
+        schedule = ScheduleGenerator(
+            clock,
+            routine,
+            timetable,
+            calendar,
+            week_patterns,
+            scenario.week_plan,
+            scenario.semester_events,
+            None,
+            None,
+            scenario.calendar.weekdays,
+        )
+        return schedule.semester_overview()
+
+    def curriculum_progress(self) -> dict:
+        config = self.load_config()
+        curriculum = config.get("curriculum", {}) or {}
+        courses_cfg = curriculum.get("courses", []) if isinstance(curriculum, dict) else []
+        concepts_cfg = curriculum.get("concepts", []) if isinstance(curriculum, dict) else []
+        if not courses_cfg:
+            return {"courses": [], "updated_at": None}
+        concept_meta = {item.get("id"): item for item in concepts_cfg if item.get("id")}
+        store = SQLiteMemoryStore(self._paths.data_path)
+        try:
+            records = store.list_knowledge()
+        finally:
+            store.close()
+        by_concept = {}
+        updated_at = None
+        for record in records:
+            by_concept.setdefault(record.topic, []).append(record.score)
+            if record.updated_at is not None:
+                updated_at = max(updated_at or record.updated_at, record.updated_at)
+        averages = {
+            topic: sum(scores) / len(scores)
+            for topic, scores in by_concept.items()
+            if scores
+        }
+        courses = []
+        for course in courses_cfg:
+            concept_ids = []
+            for unit in course.get("units", []):
+                for lesson in unit.get("lessons", []):
+                    for concept_id in lesson.get("concepts", []):
+                        if concept_id not in concept_ids:
+                            concept_ids.append(concept_id)
+            concepts = []
+            scores = []
+            for concept_id in concept_ids:
+                meta = concept_meta.get(concept_id, {})
+                score = averages.get(concept_id)
+                if score is not None:
+                    scores.append(score)
+                concepts.append(
+                    {
+                        "id": concept_id,
+                        "name": meta.get("name", concept_id),
+                        "score": score,
+                    }
+                )
+            progress = sum(scores) / len(scores) if scores else None
+            courses.append(
+                {
+                    "course_id": course.get("id"),
+                    "name": course.get("name", course.get("id")),
+                    "progress": progress,
+                    "concepts": concepts,
+                }
+            )
+        return {"courses": courses, "updated_at": updated_at}
 
     def list_messages(
         self,
@@ -219,8 +315,12 @@ def create_app():
         return await service.status()
 
     @app.post("/start")
-    async def start():
-        return (await service.start()).__dict__
+    async def start(payload: Optional[dict] = None, mode: Optional[str] = None):
+        selected = None
+        if payload:
+            selected = payload.get("mode")
+        selected = selected or mode
+        return (await service.start(mode=selected)).__dict__
 
     @app.post("/stop")
     async def stop():
@@ -312,6 +412,10 @@ def create_app():
     async def get_timetable():
         return service.list_timetable()
 
+    @app.get("/semester")
+    async def get_semester():
+        return service.semester_overview()
+
     @app.post("/agents/{agent_id}/apply-template")
     async def apply_template(agent_id: str, payload: dict):
         template_name = payload.get("template")
@@ -341,6 +445,10 @@ def create_app():
         direction: Optional[str] = Query(None, pattern="^(inbound|outbound)$"),
     ):
         return service.list_messages(limit=limit, since_ts=since, direction=direction)
+
+    @app.get("/curriculum-progress")
+    async def get_curriculum_progress():
+        return service.curriculum_progress()
 
     @app.get("/knowledge")
     async def get_knowledge(agent_id: Optional[str] = None):

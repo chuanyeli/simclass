@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -132,6 +132,29 @@
           </div>
           <div id="knowledge-list" class="knowledge-list"></div>
         </section>
+        <section class="panel curriculum">
+          <div class="panel-header">
+            <h2>课程与知识点</h2>
+            <div class="panel-actions">
+              <button class="btn ghost" id="btn-refresh-curriculum">刷新</button>
+            </div>
+          </div>
+          <div id="curriculum-list" class="curriculum-list"></div>
+        </section>
+
+        <section class="panel exam">
+          <div class="panel-header">
+            <h2>考试周</h2>
+            <div class="panel-actions">
+              <button class="btn ghost" id="btn-refresh-semester">刷新</button>
+            </div>
+          </div>
+          <div class="exam-summary">
+            <span id="exam-pill" class="pill">教学周</span>
+            <span id="exam-current">--</span>
+          </div>
+          <div id="exam-weeks" class="exam-weeks"></div>
+        </section>
       </main>
 
       <section id="classroom-view" class="classroom hidden">
@@ -156,6 +179,19 @@
       </section>
     </div>
 
+    <div id="start-modal" class="modal hidden">
+      <div class="modal-card">
+        <h3>开始仿真</h3>
+        <p class="hint">请选择继续上次进度，或从头开始。</p>
+        <div class="button-row">
+          <button class="btn primary" id="start-continue">继续</button>
+          <button class="btn" id="start-reset">从头开始</button>
+          <button class="btn ghost" id="start-cancel">取消</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/ui/app.js"></script>
   </body>
 </html>
+

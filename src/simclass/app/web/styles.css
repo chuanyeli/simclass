@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;600&family=Space+Grotesk:wght@400;500;600&display=swap");
+﻿@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;600&family=Space+Grotesk:wght@400;500;600&display=swap");
 
 :root {
   --paper: #f5f1e8;
@@ -576,6 +576,29 @@ h1 {
   margin-bottom: 6px;
 }
 
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 31, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  min-width: 280px;
+}
+
+.modal-card h3 {
+  margin: 0 0 8px;
+}
+
 .hint {
   margin: 4px 0 12px;
   color: var(--muted);
@@ -612,3 +635,4 @@ h1 {
     transform: translateY(0);
   }
 }
+
