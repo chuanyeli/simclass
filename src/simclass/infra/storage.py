@@ -38,6 +38,18 @@ class KnowledgeRecord:
     updated_at: float
 
 
+@dataclass(frozen=True)
+class WorldEventRecord:
+    event_type: str
+    actor_id: str
+    target_id: Optional[str]
+    scene_id: Optional[str]
+    seat_id: Optional[str]
+    object_id: Optional[str]
+    content: str
+    timestamp: float
+
+
 class SQLiteMemoryStore:
     def __init__(self, db_path: Path, *, on_message_event=None) -> None:
         self._db_path = db_path
@@ -120,6 +132,21 @@ class SQLiteMemoryStore:
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL,
                     updated_at REAL NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS world_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    actor_id TEXT NOT NULL,
+                    target_id TEXT,
+                    scene_id TEXT,
+                    seat_id TEXT,
+                    object_id TEXT,
+                    content TEXT NOT NULL,
+                    timestamp REAL NOT NULL
                 )
                 """
             )
@@ -360,6 +387,79 @@ class SQLiteMemoryStore:
                 agent_id=row[6],
                 direction=row[7],
             )
+            for row in rows
+        ]
+
+    def record_world_event(
+        self,
+        event_type: str,
+        actor_id: str,
+        target_id: Optional[str],
+        scene_id: Optional[str],
+        seat_id: Optional[str],
+        object_id: Optional[str],
+        content: str,
+    ) -> None:
+        timestamp = time.time()
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO world_events (
+                    event_type, actor_id, target_id, scene_id, seat_id, object_id, content, timestamp
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_type,
+                    actor_id,
+                    target_id,
+                    scene_id,
+                    seat_id,
+                    object_id,
+                    content,
+                    timestamp,
+                ),
+            )
+            self._conn.commit()
+
+    def list_world_events(
+        self,
+        limit: int = 100,
+        since_ts: Optional[float] = None,
+        event_type: Optional[str] = None,
+    ) -> list[dict]:
+        query = """
+            SELECT event_type, actor_id, target_id, scene_id, seat_id, object_id, content, timestamp
+            FROM world_events
+        """
+        params: list[object] = []
+        clauses: list[str] = []
+        if since_ts is not None:
+            clauses.append("timestamp > ?")
+            params.append(since_ts)
+        if event_type:
+            clauses.append("event_type = ?")
+            params.append(event_type)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+        return [
+            {
+                "event_type": row[0],
+                "actor_id": row[1],
+                "target_id": row[2],
+                "scene_id": row[3],
+                "seat_id": row[4],
+                "object_id": row[5],
+                "content": row[6],
+                "timestamp": row[7],
+            }
             for row in rows
         ]
 

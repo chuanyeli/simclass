@@ -35,6 +35,7 @@ class StudentBehavior(BaseBehavior):
         noise_prob: float = 0.08,
         rng=None,
         social_graph=None,
+        world=None,
     ) -> None:
         self._responder = responder
         self._question_prob = question_prob
@@ -45,6 +46,7 @@ class StudentBehavior(BaseBehavior):
         self._noise_prob = noise_prob
         self._rng = rng
         self._social_graph = social_graph
+        self._world = world
 
     async def on_message(self, agent, message: Message) -> List[OutboundMessage]:
         responses: List[OutboundMessage] = []
@@ -88,6 +90,7 @@ class StudentBehavior(BaseBehavior):
                         content=noise,
                     )
                 )
+            responses.extend(self._maybe_object_use(agent, message.sender_id))
         elif message.topic == "quiz":
             topic = self._extract_topic(message.content) or "课堂主题"
             probability = self._scale_prob(agent, 0.85, "question")
@@ -269,6 +272,7 @@ class StudentBehavior(BaseBehavior):
                 incoming=f"group:{topic}",
                 fallback=f"{agent.profile.name} 分享了对{topic}的观点。",
             )
+            self._record_seat_interaction(agent, receiver_id, "discussion")
             return [
                 OutboundMessage(
                     receiver_id=receiver_id,
@@ -420,6 +424,8 @@ class StudentBehavior(BaseBehavior):
     def _pick_peer(self, agent_id: str, peers: List[str]) -> Optional[str]:
         if not peers:
             return None
+        if self._world:
+            return self._world.pick_peer_with_bias(agent_id, peers, self._rng)
         if self._social_graph:
             return self._social_graph.choose_peer(self._rng, agent_id, peers)
         return self._pick_one(peers)
@@ -438,6 +444,57 @@ class StudentBehavior(BaseBehavior):
         else:
             noise = random.choice(noises)
         return f"{agent.profile.name} {noise}"
+
+    def _maybe_object_use(self, agent, teacher_id: Optional[str]) -> List[OutboundMessage]:
+        if not self._world or not self._rng:
+            return []
+        if self._rng.random() > 0.12:
+            return []
+        object_id = f"phone.{agent.profile.agent_id}"
+        if not self._world.use_object(object_id, agent.profile.agent_id):
+            return []
+        self._record_object_use(agent, object_id, "use")
+        if teacher_id:
+            return [
+                OutboundMessage(
+                    receiver_id=teacher_id,
+                    topic="noise",
+                    content=f"{agent.profile.name} 偷玩手机",
+                )
+            ]
+        return []
+
+    def _record_seat_interaction(
+        self, agent, target_id: Optional[str], action: str
+    ) -> None:
+        if not self._world or not agent.memory_store:
+            return
+        location = self._world.location_for(agent.profile.agent_id)
+        if not location:
+            return
+        agent.memory_store.record_world_event(
+            event_type="SEAT_INTERACT",
+            actor_id=agent.profile.agent_id,
+            target_id=target_id,
+            scene_id=location.scene_id,
+            seat_id=location.seat_id,
+            object_id=None,
+            content=action,
+        )
+
+    def _record_object_use(self, agent, object_id: str, action: str) -> None:
+        if not agent.memory_store:
+            return
+        location = self._world.location_for(agent.profile.agent_id) if self._world else None
+        agent.memory_store.record_world_event(
+            event_type="OBJECT_USE",
+            actor_id=agent.profile.agent_id,
+            target_id=None,
+            scene_id=location.scene_id if location else None,
+            seat_id=location.seat_id if location else None,
+            object_id=object_id,
+            content=action,
+        )
 
     def _update_state_for_routine(self, agent, action: str) -> None:
         state = agent.state
@@ -483,6 +540,7 @@ class TeacherBehavior(BaseBehavior):
         responder: Optional[LLMResponder] = None,
         rng=None,
         curriculum=None,
+        world=None,
     ) -> None:
         self._responder = responder
         self._feedback_stats = {}
@@ -491,6 +549,7 @@ class TeacherBehavior(BaseBehavior):
         self._assessments = {}
         self._rng = rng
         self._curriculum = curriculum
+        self._world = world
 
     async def on_message(self, agent, message: Message) -> List[OutboundMessage]:
         if message.topic == "question":
@@ -539,12 +598,76 @@ class TeacherBehavior(BaseBehavior):
                     content=content,
                 )
             ]
+        if message.topic == "overheard":
+            sender_id = message.sender_id
+            if sender_id == "unknown" or not sender_id:
+                if "from=" in message.content:
+                    sender_id = message.content.split("from=", 1)[1].split(";", 1)[0]
+                if sender_id == "unknown" or not sender_id:
+                    sender_id = None
+            if sender_id and self._rng and self._rng.random() < 0.5:
+                return [
+                    OutboundMessage(
+                        receiver_id=sender_id,
+                        topic="discipline",
+                        content="Please keep the discussion quiet during class.",
+                    )
+                ]
+            if self._rng and self._rng.random() < 0.3:
+                recipients = agent.directory.group_members("all", role=AgentRole.STUDENT)
+                return [
+                    OutboundMessage(
+                        receiver_id=student_id,
+                        topic="discipline",
+                        content="Let's stay focused and lower the noise.",
+                    )
+                    for student_id in recipients
+                ]
+            return []
+
         if message.topic == "noise":
+            sender_profile = agent.directory.get_profile(message.sender_id)
+            if sender_profile is None or message.sender_id == "unknown":
+                suspect_row = self._parse_suspect_row(message.content)
+                suspicion = self._parse_suspicion_score(message.content)
+                if suspect_row is not None:
+                    self._update_suspicion(agent, f"row:{suspect_row}", suspicion or 0.2)
+                target_id = self._pick_student_in_row(agent, suspect_row)
+                if target_id and self._rng and self._rng.random() < 0.45:
+                    return [
+                        OutboundMessage(
+                            receiver_id=target_id,
+                            topic="cold_call",
+                            content="Please stay focused and answer the question.",
+                        )
+                    ]
+                if self._rng and self._rng.random() < 0.4:
+                    content = await self._compose(
+                        agent,
+                        instruction="Provide a brief general reminder about classroom discipline.",
+                        incoming=f"noise:{message.content}",
+                        fallback=f"{agent.profile.name} reminds the class to stay focused.",
+                    )
+                    recipients = agent.directory.group_members(
+                        "all", role=AgentRole.STUDENT
+                    )
+                    return [
+                        OutboundMessage(
+                            receiver_id=student_id,
+                            topic="discipline",
+                            content=content,
+                        )
+                        for student_id in recipients
+                    ]
+                return []
+            if self._world and not self._world.is_visible(message.sender_id):
+                if self._rng and self._rng.random() < 0.6:
+                    return []
             content = await self._compose(
                 agent,
-                instruction="请简短提醒课堂纪律，语气不必严厉。",
+                instruction="???????????????????????????????????????????????????",
                 incoming=f"noise:{message.content}",
-                fallback=f"{agent.profile.name} 提醒大家注意课堂纪律。",
+                fallback=f"{agent.profile.name} ?????????????????????????????????",
             )
             return [
                 OutboundMessage(
@@ -895,6 +1018,49 @@ class TeacherBehavior(BaseBehavior):
         if not self._rng or self._rng.random() > 0.25:
             return None
         return self._rng.choice(recipients)
+
+    def _parse_suspect_row(self, content: str) -> Optional[int]:
+        if not content:
+            return None
+        for key in ("suspect_row", "row"):
+            token = f"{key}="
+            if token not in content:
+                continue
+            try:
+                value = content.split(token, 1)[1].split(";", 1)[0]
+                return int(value)
+            except ValueError:
+                return None
+        return None
+
+    def _parse_suspicion_score(self, content: str) -> Optional[float]:
+        if "suspicion=" not in content:
+            return None
+        try:
+            value = content.split("suspicion=", 1)[1].split(";", 1)[0]
+            return float(value)
+        except ValueError:
+            return None
+
+    def _update_suspicion(self, agent, key: str, delta: float) -> None:
+        if not hasattr(agent, "state"):
+            return
+        current = agent.state.suspicion.get(key, 0.0)
+        agent.state.suspicion[key] = min(1.0, current + max(0.0, delta))
+
+    def _pick_student_in_row(self, agent, row: Optional[int]) -> Optional[str]:
+        if row is None or not self._world:
+            return None
+        candidates = []
+        for student_id in agent.directory.group_members("all", role=AgentRole.STUDENT):
+            location = self._world.location_for(student_id)
+            if location and location.row == row:
+                candidates.append(student_id)
+        if not candidates:
+            return None
+        if self._rng:
+            return self._rng.choice(candidates)
+        return candidates[0]
 
     async def _build_quiz_question(
         self, agent, concept_id: str, concept_name: str, context: str

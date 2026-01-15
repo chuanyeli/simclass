@@ -13,6 +13,7 @@ from simclass.app.scenario import load_scenario
 from simclass.core.simulation import Simulation
 from simclass.core.calendar import DailyRoutine, SimClock, Timetable
 from simclass.core.schedule import ScheduleGenerator, WeekPattern, build_academic_calendar
+from simclass.core.world import build_world_model
 from simclass.core.tools import build_default_tools
 from simclass.infra import SQLiteMemoryStore, configure_logging, load_dotenv
 
@@ -136,7 +137,20 @@ class SimulationService:
 
     async def status(self) -> dict:
         if not self._simulation:
-            return {"running": False, "paused": False, "current_tick": 0}
+            scenario = load_scenario(self._paths.config_path)
+            store = SQLiteMemoryStore(self._paths.data_path)
+            try:
+                stored_tick = store.get_last_tick()
+            finally:
+                store.close()
+            return {
+                "running": False,
+                "paused": False,
+                "current_tick": 0,
+                "ticks_total": scenario.ticks,
+                "agent_count": len(scenario.agent_specs),
+                "stored_tick": stored_tick,
+            }
         return self._simulation.status()
 
     def load_config(self) -> dict:
@@ -243,6 +257,33 @@ class SimulationService:
             )
         return {"courses": courses, "updated_at": updated_at}
 
+    def world_state(self) -> dict:
+        if self._simulation:
+            return self._simulation.world_state()
+        scenario = load_scenario(self._paths.config_path)
+        world = build_world_model(
+            scenario.scenes,
+            scenario.classroom_layout,
+            scenario.objects,
+        )
+        students = [
+            spec.profile.agent_id
+            for spec in scenario.agent_specs
+            if spec.profile.role.value == "student"
+        ]
+        teachers = [
+            spec.profile.agent_id
+            for spec in scenario.agent_specs
+            if spec.profile.role.value == "teacher"
+        ]
+        world.assign_seats(students, scene_id="classroom")
+        world.ensure_personal_objects(
+            students, ["phone", "snack", "notebook", "paper_note"]
+        )
+        for teacher_id in teachers:
+            world.move_agent(teacher_id, "classroom")
+        return world.snapshot()
+
     def list_messages(
         self,
         limit: int = 50,
@@ -283,6 +324,20 @@ class SimulationService:
                 }
                 for record in records
             ]
+        finally:
+            store.close()
+
+    def list_world_events(
+        self,
+        limit: int = 100,
+        since_ts: Optional[float] = None,
+        event_type: Optional[str] = None,
+    ) -> list[dict]:
+        store = SQLiteMemoryStore(self._paths.data_path)
+        try:
+            return store.list_world_events(
+                limit=limit, since_ts=since_ts, event_type=event_type
+            )
         finally:
             store.close()
 
@@ -449,6 +504,20 @@ def create_app():
     @app.get("/curriculum-progress")
     async def get_curriculum_progress():
         return service.curriculum_progress()
+
+    @app.get("/world-state")
+    async def get_world_state():
+        return service.world_state()
+
+    @app.get("/world-events")
+    async def get_world_events(
+        limit: int = Query(80, ge=1, le=200),
+        since: Optional[float] = None,
+        event_type: Optional[str] = None,
+    ):
+        return service.list_world_events(
+            limit=limit, since_ts=since, event_type=event_type
+        )
 
     @app.get("/knowledge")
     async def get_knowledge(agent_id: Optional[str] = None):

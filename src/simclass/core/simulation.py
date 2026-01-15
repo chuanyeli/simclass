@@ -17,6 +17,8 @@ from simclass.core.context import ContextManager
 from simclass.core.controller import ClassroomController, ClassControllerConfig
 from simclass.core.directory import AgentDirectory
 from simclass.core.supervisor import AgentSupervisor
+from simclass.core.world import build_world_model
+from simclass.core.perception import PerceptionEngine, build_perception_config
 from simclass.domain import AgentRole, Message, SystemEvent
 
 
@@ -71,6 +73,8 @@ class Simulation:
         self._day_index = None
         self._daily_concepts = {}
         self._day_info = {}
+        self._world = None
+        self._perception = None
         self._rng_seed = int(getattr(scenario, "rng_seed", 42))
         self._sim_rng = random.Random(self._rng_seed)
         self._student_groups = sorted(
@@ -115,7 +119,25 @@ class Simulation:
                     self._sim_rng,
                     scenario.calendar.weekdays,
                 )
+        if getattr(scenario, "classroom_layout", None) is not None:
+            self._world = build_world_model(
+                scenario.scenes,
+                scenario.classroom_layout,
+                scenario.objects,
+            )
         self._prepare_agents()
+        self._initialize_world()
+        self._setup_perception()
+
+    def _setup_perception(self) -> None:
+        config = build_perception_config(getattr(self._scenario, "perception", None))
+        if not config.enabled:
+            return
+        self._perception = PerceptionEngine(
+            self._world, self._directory, config, rng=self._sim_rng, record_event=self._record_world_event
+        )
+        self._bus.set_message_filter(self._perception.filter_message)
+        self._bus.set_message_observer(self._perception.observer_messages)
 
     def _prepare_agents(self) -> None:
         for index, spec in enumerate(self._scenario.agent_specs):
@@ -141,12 +163,15 @@ class Simulation:
                     noise_prob=self._scenario.behavior.student_noise_prob,
                     rng=rng,
                     social_graph=social_graph,
+                    world=self._world,
                 )
             elif profile.role == AgentRole.TEACHER:
                 curriculum = None
                 if self._schedule:
                     curriculum = self._schedule.curriculum
-                behavior = TeacherBehavior(responder=responder, rng=rng, curriculum=curriculum)
+                behavior = TeacherBehavior(
+                    responder=responder, rng=rng, curriculum=curriculum, world=self._world
+                )
             else:
                 continue
             agent = Agent(
@@ -160,6 +185,38 @@ class Simulation:
             )
             self._agents.append(agent)
             self._supervisor.add(profile.agent_id, agent)
+
+    def _initialize_world(self) -> None:
+        if not self._world:
+            return
+        students = [
+            spec.profile.agent_id
+            for spec in self._scenario.agent_specs
+            if spec.profile.role == AgentRole.STUDENT
+        ]
+        teachers = [
+            spec.profile.agent_id
+            for spec in self._scenario.agent_specs
+            if spec.profile.role == AgentRole.TEACHER
+        ]
+        self._world.assign_seats(students, scene_id="classroom")
+        self._world.ensure_personal_objects(
+            students, ["phone", "snack", "notebook", "paper_note"]
+        )
+        for teacher_id in teachers:
+            self._world.move_agent(teacher_id, "classroom")
+        for agent_id in students + teachers:
+            location = self._world.location_for(agent_id)
+            if location:
+                self._record_world_event(
+                    event_type="SCENE_CHANGE",
+                    actor_id=agent_id,
+                    target_id=None,
+                    scene_id=location.scene_id,
+                    seat_id=location.seat_id,
+                    object_id=None,
+                    content="init",
+                )
 
     async def run(self) -> None:
         self._started_at = time.time()
@@ -230,6 +287,9 @@ class Simulation:
         for event in self._schedule.events_for_time(sim_time):
             if event.event_type == "class_session":
                 self._controller.register_session(sim_time.tick, event.payload)
+                if self._world and self._world.layout and self._sim_rng:
+                    patrol_row = self._sim_rng.randrange(self._world.layout.rows)
+                    self._world.set_patrol_row(patrol_row)
                 self._record_concepts(
                     sim_time.day_index,
                     event.payload.get("group", "all"),
@@ -239,6 +299,8 @@ class Simulation:
                 await self._dispatch_review(sim_time, event.payload)
             elif event.event_type in {"announcement", "activity"}:
                 await self._broadcast_announcement(event.payload.get("message", ""))
+                action = event.payload.get("action", event.payload.get("activity", ""))
+                self._apply_scene_transition(action)
                 await self._bus.emit_system(
                     SystemEvent(
                         "routine",
@@ -253,6 +315,35 @@ class Simulation:
                 )
         if self._schedule and self._schedule.is_test_start(sim_time):
             await self._dispatch_daily_test(sim_time)
+
+    def _apply_scene_transition(self, action: str) -> None:
+        if not self._world or not action:
+            return
+        mapping = {
+            "breakfast_start": "cafeteria",
+            "lunch_start": "cafeteria",
+            "morning_classes": "classroom",
+            "afternoon_classes": "classroom",
+            "test_start": "classroom",
+            "school_end": "corridor",
+        }
+        scene_id = mapping.get(action)
+        if not scene_id or not self._world.has_scene(scene_id):
+            return
+        agent_ids = self._directory.all_agents()
+        self._world.move_all(agent_ids, scene_id)
+        for agent_id in agent_ids:
+            location = self._world.location_for(agent_id)
+            if location:
+                self._record_world_event(
+                    event_type="SCENE_CHANGE",
+                    actor_id=agent_id,
+                    target_id=None,
+                    scene_id=location.scene_id,
+                    seat_id=location.seat_id,
+                    object_id=None,
+                    content=action,
+                )
 
     async def _dispatch_review(self, sim_time, payload: dict) -> None:
         for group in self._student_groups:
@@ -323,6 +414,28 @@ class Simulation:
         recipients = self._directory.all_agents()
         await self._bus.emit_system(SystemEvent("shutdown", {}), recipients)
 
+    def _record_world_event(
+        self,
+        event_type: str,
+        actor_id: str,
+        target_id: Optional[str],
+        scene_id: Optional[str],
+        seat_id: Optional[str],
+        object_id: Optional[str],
+        content: str,
+    ) -> None:
+        if not hasattr(self._memory_store, "record_world_event"):
+            return
+        self._memory_store.record_world_event(
+            event_type=event_type,
+            actor_id=actor_id,
+            target_id=target_id,
+            scene_id=scene_id,
+            seat_id=seat_id,
+            object_id=object_id,
+            content=content,
+        )
+
     def pause(self) -> None:
         self._pause_event.clear()
 
@@ -352,3 +465,8 @@ class Simulation:
             "ticks_total": self._end_tick,
             "sim_time": sim_time,
         }
+
+    def world_state(self) -> dict:
+        if not self._world:
+            return {}
+        return self._world.snapshot()

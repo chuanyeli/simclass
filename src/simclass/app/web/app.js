@@ -7,6 +7,12 @@
   curriculum: [],
   semester: null,
   simTime: null,
+  world: null,
+  worldEvents: [],
+  worldEventLast: 0,
+  status: null,
+  hasProgress: false,
+  lastUtterance: {},
   lastTimestamp: 0,
   wsConnected: false,
   view: "control",
@@ -15,6 +21,12 @@
     outbound: true,
     inbound: false,
     role: "all",
+  },
+  worldFilters: {
+    trueEvent: true,
+    perceivedEvent: true,
+    suspicionEvent: true,
+    otherEvent: false,
   },
   bubbleTimers: new Map(),
   actionTimers: new Map(),
@@ -39,6 +51,13 @@ const controlView = document.getElementById("control-view");
 const classroomView = document.getElementById("classroom-view");
 const classroomAvatars = document.getElementById("classroom-avatars");
 const seatGrid = document.getElementById("seat-grid");
+const classroomBoard = document.querySelector(".board");
+const classroomDesk = document.querySelector(".teacher-desk");
+const classroomScene = document.getElementById("classroom-scene");
+const classroomTime = document.getElementById("classroom-time");
+const classroomPatrol = document.getElementById("classroom-patrol");
+const classroomDoors = document.getElementById("classroom-doors");
+const classroomProps = document.getElementById("classroom-props");
 const newTemplate = document.getElementById("new-template");
 const knowledgeList = document.getElementById("knowledge-list");
 const timetableList = document.getElementById("timetable-list");
@@ -46,6 +65,14 @@ const curriculumList = document.getElementById("curriculum-list");
 const examWeeks = document.getElementById("exam-weeks");
 const examPill = document.getElementById("exam-pill");
 const examCurrent = document.getElementById("exam-current");
+const worldScenes = document.getElementById("world-scenes");
+const worldSeatmap = document.getElementById("world-seatmap");
+const worldObjects = document.getElementById("world-objects");
+const worldEventsList = document.getElementById("world-events-list");
+const filterTrueEvent = document.getElementById("filter-true-event");
+const filterPerceivedEvent = document.getElementById("filter-perceived-event");
+const filterSuspicionEvent = document.getElementById("filter-suspicion-event");
+const filterOtherEvent = document.getElementById("filter-other-event");
 const startModal = document.getElementById("start-modal");
 const startContinue = document.getElementById("start-continue");
 const startReset = document.getElementById("start-reset");
@@ -64,6 +91,8 @@ const btnRefreshKnowledge = document.getElementById("btn-refresh-knowledge");
 const btnRefreshTimetable = document.getElementById("btn-refresh-timetable");
 const btnRefreshCurriculum = document.getElementById("btn-refresh-curriculum");
 const btnRefreshSemester = document.getElementById("btn-refresh-semester");
+const btnRefreshWorld = document.getElementById("btn-refresh-world");
+const btnRefreshWorldEvents = document.getElementById("btn-refresh-world-events");
 
 function splitComma(value) {
   return value
@@ -197,6 +226,8 @@ function setRosterTab(tab) {
 async function fetchStatus() {
   const res = await fetch("/status");
   const data = await res.json();
+  state.status = data || null;
+  state.hasProgress = Boolean(data && data.stored_tick && data.stored_tick > 1);
   statusTick.textContent = `${data.current_tick}/${data.ticks_total || 0}`;
   statusCount.textContent = `${data.agent_count || 0}`;
   if (statusTime) {
@@ -608,11 +639,205 @@ async function fetchSemester() {
   renderExam();
 }
 
+function renderWorld() {
+  if (!worldScenes || !worldSeatmap || !worldObjects) {
+    return;
+  }
+  const world = state.world || {};
+  const layout = world.layout;
+  const agents = Array.isArray(world.agents) ? world.agents : [];
+  const objects = Array.isArray(world.objects) ? world.objects : [];
+  const scenes = Array.isArray(world.scenes) ? world.scenes : [];
+
+  worldScenes.innerHTML = "";
+  const sceneCounts = {};
+  agents.forEach((item) => {
+    const sceneId = item.scene_id || "unknown";
+    sceneCounts[sceneId] = (sceneCounts[sceneId] || 0) + 1;
+  });
+  if (!scenes.length) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无场景数据。";
+    worldScenes.appendChild(empty);
+  } else {
+    scenes.forEach((scene) => {
+      const chip = document.createElement("div");
+      chip.className = "world-chip";
+      const count = sceneCounts[scene.id] || 0;
+      chip.textContent = `${scene.id} · ${count}人`;
+      worldScenes.appendChild(chip);
+    });
+  }
+
+  worldSeatmap.innerHTML = "";
+  if (!layout) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无座位布局。";
+    worldSeatmap.appendChild(empty);
+  } else {
+    const bySeat = {};
+    agents.forEach((item) => {
+      if (item.seat_id) {
+        bySeat[item.seat_id] = item.agent_id;
+      }
+    });
+    const seatPositions = layout.seat_positions || {};
+    const posMap = {};
+    Object.keys(seatPositions).forEach((seatId) => {
+      const pos = seatPositions[seatId];
+      if (!pos) {
+        return;
+      }
+      posMap[`${pos[0]}:${pos[1]}`] = seatId;
+    });
+    worldSeatmap.style.gridTemplateColumns = `repeat(${layout.cols}, minmax(64px, 1fr))`;
+    for (let row = 0; row < layout.rows; row += 1) {
+      for (let col = 0; col < layout.cols; col += 1) {
+        const cell = document.createElement("div");
+        cell.className = "seat-cell";
+        const seatId = posMap[`${row}:${col}`];
+        if (!seatId) {
+          cell.classList.add("seat-empty");
+          cell.textContent = "空";
+        } else {
+          const occupant = bySeat[seatId];
+          cell.innerHTML = `<strong>${seatId}</strong><span>${occupant || "—"}</span>`;
+        }
+        if (
+          layout.teacher_desk &&
+          layout.teacher_desk.row === row &&
+          layout.teacher_desk.col === col
+        ) {
+          cell.classList.add("seat-teacher");
+          cell.textContent = "讲台";
+        }
+        worldSeatmap.appendChild(cell);
+      }
+    }
+  }
+
+  worldObjects.innerHTML = "";
+  if (!objects.length) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无道具数据。";
+    worldObjects.appendChild(empty);
+  } else {
+    objects.forEach((obj) => {
+      const card = document.createElement("div");
+      card.className = "world-object";
+      const holder = obj.holder_id ? ` · ${obj.holder_id}` : "";
+      card.textContent = `${obj.type} (${obj.state})${holder}`;
+      worldObjects.appendChild(card);
+    });
+  }
+}
+
+async function fetchWorldState() {
+  const res = await fetch("/world-state");
+  const data = await res.json();
+  state.world = data || {};
+  renderWorld();
+  renderClassroom();
+}
+
+function renderWorldEvents() {
+  if (!worldEventsList) {
+    return;
+  }
+  worldEventsList.innerHTML = "";
+  const filtered = state.worldEvents.filter((event) => {
+    if (!event || !event.event_type) {
+      return false;
+    }
+    if (event.event_type === "TRUE_EVENT") {
+      return state.worldFilters.trueEvent;
+    }
+    if (event.event_type === "PERCEIVED_EVENT") {
+      return state.worldFilters.perceivedEvent;
+    }
+    if (event.event_type === "SUSPICION_UPDATE") {
+      return state.worldFilters.suspicionEvent;
+    }
+    return state.worldFilters.otherEvent;
+  });
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "暂无感知事件。";
+    worldEventsList.appendChild(empty);
+    return;
+  }
+  filtered
+    .slice()
+    .reverse()
+    .forEach((event) => {
+      const time = new Date(event.timestamp * 1000).toLocaleTimeString();
+      const actor = event.actor_id || "-";
+      const target = event.target_id || "-";
+      const tag = document.createElement("span");
+      tag.className = "event-tag";
+      if (event.event_type === "TRUE_EVENT") {
+        tag.classList.add("true");
+      } else if (event.event_type === "PERCEIVED_EVENT") {
+        tag.classList.add("perceived");
+      } else if (event.event_type === "SUSPICION_UPDATE") {
+        tag.classList.add("suspicion");
+      }
+      tag.textContent = event.event_type;
+      const item = document.createElement("div");
+      item.className = "world-event-item";
+      item.innerHTML = `
+        <div class="world-event-meta">
+          <span>${time}</span>
+          <span>${actor} -> ${target}</span>
+        </div>
+        <div>${event.content || ""}</div>
+      `;
+      item.querySelector(".world-event-meta").appendChild(tag);
+      worldEventsList.appendChild(item);
+    });
+}
+
+function ingestWorldEvent(event) {
+  if (!event || !event.timestamp) {
+    return;
+  }
+  if (event.timestamp > state.worldEventLast) {
+    state.worldEventLast = event.timestamp;
+  }
+  state.worldEvents.push(event);
+  if (state.worldEvents.length > 240) {
+    state.worldEvents = state.worldEvents.slice(-240);
+  }
+  renderWorldEvents();
+}
+
+async function fetchWorldEvents() {
+  const url =
+    state.worldEventLast > 0
+      ? `/world-events?limit=120&since=${state.worldEventLast}`
+      : "/world-events?limit=120";
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!Array.isArray(data) || data.length === 0) {
+    return;
+  }
+  data
+    .slice()
+    .reverse()
+    .forEach((event) => ingestWorldEvent(event));
+}
+
 function showStartModal() {
   if (!startModal) {
     return;
   }
   startModal.classList.remove("hidden");
+  startModal.style.display = "flex";
+  startModal.setAttribute("aria-hidden", "false");
 }
 
 function hideStartModal() {
@@ -620,14 +845,20 @@ function hideStartModal() {
     return;
   }
   startModal.classList.add("hidden");
+  startModal.style.display = "none";
+  startModal.setAttribute("aria-hidden", "true");
 }
 
 async function startSimulation(mode) {
-  await fetch("/start", {
+  const res = await fetch("/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode }),
   });
+  if (!res.ok) {
+    statusPill.textContent = "错误";
+    return;
+  }
   hideStartModal();
   await fetchStatus();
 }
@@ -785,25 +1016,47 @@ function connectWebSocket() {
   };
 }
 
-function buildSeatLayout(count) {
-  const columns = Math.min(5, Math.max(3, Math.ceil(Math.sqrt(count || 1))));
-  const rows = Math.max(1, Math.ceil((count || 1) / columns));
+function buildSeatLayout(count, worldLayout) {
+  const columns = worldLayout?.cols
+    ? Math.max(1, worldLayout.cols)
+    : Math.min(5, Math.max(3, Math.ceil(Math.sqrt(count || 1))));
+  const rows = worldLayout?.rows
+    ? Math.max(1, worldLayout.rows)
+    : Math.max(1, Math.ceil((count || 1) / columns));
   const area = { left: 12, top: 210, width: 76, height: 260 };
   const colGap = columns > 1 ? area.width / (columns - 1) : 0;
   const rowGap = rows > 1 ? area.height / (rows - 1) : 0;
   const seats = [];
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < columns; col += 1) {
-      seats.push({
+  const byId = {};
+  if (worldLayout?.seat_positions) {
+    Object.keys(worldLayout.seat_positions).forEach((seatId) => {
+      const [row, col] = worldLayout.seat_positions[seatId];
+      const seat = {
+        id: seatId,
         left: area.left + col * colGap,
         top: area.top + row * rowGap,
-      });
+        row,
+        col,
+      };
+      seats.push(seat);
+      byId[seatId] = seat;
+    });
+  } else {
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < columns; col += 1) {
+        seats.push({
+          left: area.left + col * colGap,
+          top: area.top + row * rowGap,
+          row,
+          col,
+        });
+      }
     }
   }
-  return { seats, columns, rows, area };
+  return { seats, columns, rows, area, byId };
 }
 
-function renderSeatGrid(layout) {
+function renderSeatGrid(layout, patrolRow) {
   if (!seatGrid) {
     return;
   }
@@ -811,8 +1064,14 @@ function renderSeatGrid(layout) {
   layout.seats.forEach((seat) => {
     const seatEl = document.createElement("div");
     seatEl.className = "seat";
+    if (patrolRow !== null && seat.row === patrolRow) {
+      seatEl.classList.add("patrol");
+    }
     seatEl.style.left = `${seat.left}%`;
     seatEl.style.top = `${seat.top}px`;
+    if (seat.id) {
+      seatEl.dataset.seatId = seat.id;
+    }
     seatGrid.appendChild(seatEl);
   });
 }
@@ -822,29 +1081,53 @@ function renderClassroom() {
   if (seatGrid) {
     seatGrid.innerHTML = "";
   }
+  if (classroomDoors) {
+    classroomDoors.innerHTML = "";
+  }
+  if (classroomProps) {
+    classroomProps.innerHTML = "";
+  }
   if (!state.agents.length) {
     return;
   }
   const teachers = state.agents.filter((agent) => agent.role === "teacher");
   const students = state.agents.filter((agent) => agent.role === "student");
-  const layout = buildSeatLayout(students.length);
+  const worldLayout = state.world?.layout || null;
+  const layout = buildSeatLayout(students.length, worldLayout);
   state.seatLayout = layout;
-  renderSeatGrid(layout);
+  const patrolRow = state.world?.patrol_row ?? null;
+  renderSeatGrid(layout, patrolRow);
+  applyLayoutDecor(layout, worldLayout);
+  renderClassroomHud();
+  renderClassroomDoors(layout, worldLayout);
+  renderClassroomProps();
   const teacherSpread = 12;
   const teacherStart = 50 - ((teachers.length - 1) * teacherSpread) / 2;
+  const propsByHolder = buildPropsByHolder();
   teachers.forEach((agent, index) => {
     const left = teacherStart + index * teacherSpread;
     const avatar = createAvatar(agent, left, 140, {
       walkRange: { min: left - 8, max: left + 8 },
     });
+    applyAvatarProps(avatar, propsByHolder[agent.id] || []);
+    restoreBubble(avatar, agent.id);
     classroomAvatars.appendChild(avatar);
   });
+  const seatAssignments = {};
+  (state.world?.agents || []).forEach((item) => {
+    if (item.seat_id) {
+      seatAssignments[item.agent_id] = item.seat_id;
+    }
+  });
   students.forEach((agent, index) => {
-    const seat = layout.seats[index];
+    const seatId = seatAssignments[agent.id];
+    const seat = seatId ? layout.byId?.[seatId] : layout.seats[index];
     if (!seat) {
       return;
     }
     const avatar = createAvatar(agent, seat.left, seat.top - 14);
+    applyAvatarProps(avatar, propsByHolder[agent.id] || []);
+    restoreBubble(avatar, agent.id);
     classroomAvatars.appendChild(avatar);
   });
 }
@@ -874,13 +1157,157 @@ function createAvatar(agent, leftPercent, topPx, options = {}) {
   statusEl.textContent = avatar.dataset.defaultStatus;
   const actionEl = document.createElement("span");
   actionEl.className = "avatar-action";
+  const propsEl = document.createElement("div");
+  propsEl.className = "avatar-props";
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   avatar.appendChild(nameEl);
   avatar.appendChild(statusEl);
   avatar.appendChild(actionEl);
+  avatar.appendChild(propsEl);
   avatar.appendChild(bubble);
   return avatar;
+}
+
+function renderClassroomHud() {
+  if (classroomScene) {
+    const sceneName = activeSceneName();
+    classroomScene.textContent = sceneName;
+  }
+  if (classroomTime) {
+    classroomTime.textContent = state.simTime
+      ? `${state.simTime.weekday} ${state.simTime.clock_time}`
+      : "--";
+  }
+  if (classroomPatrol) {
+    const patrolRow = state.world?.patrol_row;
+    classroomPatrol.textContent =
+      patrolRow !== null && patrolRow !== undefined
+        ? `巡查: 第${patrolRow + 1}排`
+        : "巡查: --";
+  }
+}
+
+function activeSceneName() {
+  const agents = state.world?.agents || [];
+  if (!agents.length) {
+    return "classroom";
+  }
+  const counts = {};
+  agents.forEach((item) => {
+    const sceneId = item.scene_id || "classroom";
+    counts[sceneId] = (counts[sceneId] || 0) + 1;
+  });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return top ? top[0] : "classroom";
+}
+
+function applyLayoutDecor(layout, worldLayout) {
+  if (!worldLayout || !layout) {
+    return;
+  }
+  if (classroomDesk && worldLayout.teacher_desk) {
+    const cols = layout.columns;
+    const area = layout.area;
+    const colGap = cols > 1 ? area.width / (cols - 1) : 0;
+    const deskCol = Math.max(0, Math.min(cols - 1, worldLayout.teacher_desk.col || 0));
+    classroomDesk.style.left = `${area.left + deskCol * colGap}%`;
+    classroomDesk.style.transform = "translateX(-50%)";
+  }
+  if (classroomBoard && layout.columns) {
+    const width = Math.max(50, Math.min(80, layout.columns * 12));
+    classroomBoard.style.width = `${width}%`;
+  }
+}
+
+function renderClassroomDoors(layout, worldLayout) {
+  if (!classroomDoors || !worldLayout?.doors) {
+    return;
+  }
+  const rows = layout.rows;
+  const cols = layout.columns;
+  const area = layout.area;
+  const colGap = cols > 1 ? area.width / (cols - 1) : 0;
+  const rowGap = rows > 1 ? area.height / (rows - 1) : 0;
+  worldLayout.doors.forEach((door) => {
+    const doorEl = document.createElement("div");
+    doorEl.className = "classroom-door";
+    doorEl.style.left = `${area.left + door.col * colGap}%`;
+    doorEl.style.top = `${area.top + door.row * rowGap}px`;
+    classroomDoors.appendChild(doorEl);
+  });
+}
+
+function buildPropsByHolder() {
+  const objects = state.world?.objects || [];
+  const propsByHolder = {};
+  objects.forEach((obj) => {
+    const holderId = obj.holder_id || obj.owner_id;
+    if (!holderId) {
+      return;
+    }
+    const list = propsByHolder[holderId] || [];
+    list.push(obj.type);
+    propsByHolder[holderId] = list;
+  });
+  return propsByHolder;
+}
+
+function renderClassroomProps() {
+  if (!classroomProps) {
+    return;
+  }
+  const objects = state.world?.objects || [];
+  const counts = {};
+  objects.forEach((obj) => {
+    if (obj.scene_id !== "classroom") {
+      return;
+    }
+    counts[obj.type] = (counts[obj.type] || 0) + 1;
+  });
+  classroomProps.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "props-title";
+  title.textContent = "教室道具";
+  classroomProps.appendChild(title);
+  const entries = Object.entries(counts);
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "props-item";
+    empty.textContent = "暂无道具";
+    classroomProps.appendChild(empty);
+    return;
+  }
+  entries.forEach(([type, count]) => {
+    const item = document.createElement("div");
+    item.className = "props-item";
+    item.textContent = `${type} · ${count}`;
+    classroomProps.appendChild(item);
+  });
+}
+
+function applyAvatarProps(avatar, props) {
+  const holder = avatar.querySelector(".avatar-props");
+  if (!holder) {
+    return;
+  }
+  holder.innerHTML = "";
+  if (!props || props.length === 0) {
+    return;
+  }
+  const labels = {
+    phone: "PH",
+    snack: "SN",
+    notebook: "NB",
+    paper_note: "PN",
+  };
+  const unique = Array.from(new Set(props));
+  unique.slice(0, 3).forEach((prop) => {
+    const badge = document.createElement("span");
+    badge.className = "avatar-prop";
+    badge.textContent = labels[prop] || prop.slice(0, 2).toUpperCase();
+    holder.appendChild(badge);
+  });
 }
 
 function applyAvatarExpression(avatar, topic) {
@@ -915,6 +1342,16 @@ function updateBubble(agentId, content, topic) {
   const avatar = classroomAvatars.querySelector(
     `.avatar[data-agent-id="${agentId}"]`
   );
+  const displayText = formatBubbleText(agentId, content, topic);
+  state.lastUtterance[agentId] = {
+    text: displayText,
+    topic,
+    at: Date.now(),
+  };
+  showBubble(avatar, agentId, displayText, topic);
+}
+
+function showBubble(avatar, agentId, text, topic) {
   if (!avatar) {
     return;
   }
@@ -922,7 +1359,7 @@ function updateBubble(agentId, content, topic) {
   if (!bubble) {
     return;
   }
-  bubble.textContent = content.slice(0, 120);
+  bubble.textContent = text;
   bubble.classList.add("active");
   avatar.classList.add("speaking");
   applyAvatarExpression(avatar, topic);
@@ -935,6 +1372,26 @@ function updateBubble(agentId, content, topic) {
     avatar.classList.remove("speaking");
   }, 4000);
   state.bubbleTimers.set(agentId, newTimer);
+}
+
+function restoreBubble(avatar, agentId) {
+  const last = state.lastUtterance[agentId];
+  if (!last) {
+    return;
+  }
+  const ageMs = Date.now() - last.at;
+  if (ageMs > 8000) {
+    return;
+  }
+  showBubble(avatar, agentId, last.text, last.topic);
+}
+
+function formatBubbleText(agentId, content, topic) {
+  const speaker = resolveName(agentId);
+  const text = content ? content.replace(/\s+/g, " ").trim() : "";
+  const trimmed = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  const label = displayTopic(topic);
+  return `${speaker} · ${label}：${trimmed}`;
 }
 
 function animateClassroom() {
@@ -971,7 +1428,12 @@ function animateClassroom() {
 }
 
 btnStart.onclick = async () => {
-  showStartModal();
+  await fetchStatus();
+  if (state.hasProgress && startModal) {
+    showStartModal();
+    return;
+  }
+  await startSimulation("continue");
 };
 
 btnPause.onclick = async () => {
@@ -1012,6 +1474,14 @@ if (startReset) {
 if (startCancel) {
   startCancel.onclick = () => {
     hideStartModal();
+  };
+}
+
+if (startModal) {
+  startModal.onclick = (event) => {
+    if (event.target === startModal) {
+      hideStartModal();
+    }
   };
 }
 
@@ -1058,6 +1528,19 @@ if (btnRefreshSemester) {
     await fetchSemester();
   };
 }
+
+if (btnRefreshWorld) {
+  btnRefreshWorld.onclick = async () => {
+    await fetchWorldState();
+  };
+}
+if (btnRefreshWorldEvents) {
+  btnRefreshWorldEvents.onclick = async () => {
+    state.worldEventLast = 0;
+    state.worldEvents = [];
+    await fetchWorldEvents();
+  };
+}
 filterOutbound.onchange = () => {
   state.filters.outbound = filterOutbound.checked;
   renderFeed();
@@ -1073,12 +1556,38 @@ filterRole.onchange = () => {
   renderFeed();
 };
 
+if (filterTrueEvent) {
+  filterTrueEvent.onchange = () => {
+    state.worldFilters.trueEvent = filterTrueEvent.checked;
+    renderWorldEvents();
+  };
+}
+if (filterPerceivedEvent) {
+  filterPerceivedEvent.onchange = () => {
+    state.worldFilters.perceivedEvent = filterPerceivedEvent.checked;
+    renderWorldEvents();
+  };
+}
+if (filterSuspicionEvent) {
+  filterSuspicionEvent.onchange = () => {
+    state.worldFilters.suspicionEvent = filterSuspicionEvent.checked;
+    renderWorldEvents();
+  };
+}
+if (filterOtherEvent) {
+  filterOtherEvent.onchange = () => {
+    state.worldFilters.otherEvent = filterOtherEvent.checked;
+    renderWorldEvents();
+  };
+}
+
 tabRoster.onclick = () => setRosterTab("roster");
 tabThreads.onclick = () => setRosterTab("threads");
 viewControl.onclick = () => setView("control");
 viewClassroom.onclick = () => setView("classroom");
 
 async function bootstrap() {
+  hideStartModal();
   await fetchTemplates();
   await fetchAgents();
   await fetchMessages();
@@ -1086,12 +1595,16 @@ async function bootstrap() {
   await fetchTimetable();
   await fetchCurriculumProgress();
   await fetchSemester();
+  await fetchWorldState();
+  await fetchWorldEvents();
   connectWebSocket();
   setInterval(fetchStatus, 1500);
   setInterval(fetchMessages, 1500);
   setInterval(fetchKnowledge, 3000);
   setInterval(fetchCurriculumProgress, 6000);
   setInterval(fetchSemester, 12000);
+  setInterval(fetchWorldState, 4000);
+  setInterval(fetchWorldEvents, 4000);
   setInterval(animateClassroom, 1200);
   setView("control");
   setRosterTab("roster");

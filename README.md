@@ -20,7 +20,7 @@ Set the API key in your environment (do not hardcode it in files):
 set DEEPSEEK_API_KEY=your_key_here
 ```
 
-Or create a `.env` file in the repo root (see `.env.example`).
+Or create a `.env` file in the repo root with `DEEPSEEK_API_KEY=...`.
 
 LLM can be toggled in `configs/campus_basic.json` under `llm.enabled` or per-agent.
 If the key is missing, the simulator falls back to rule-based replies.
@@ -36,7 +36,7 @@ API host/port is read from `configs/campus_basic.json`.
 
 Open the UI at `http://127.0.0.1:8010/`.
 Use the Agents panel to edit persona fields or apply templates, then click Reload to apply.
-Switch to Classroom View to see a simple scene layout with speaking avatars.
+Switch to Classroom View to see the scene layout, seat map, doors, props, and speech bubbles.
 
 Endpoints:
 
@@ -56,7 +56,11 @@ Endpoints:
   - Optional query: `direction=outbound|inbound`, `since`, `limit`
 - `GET /knowledge`
 - `GET /timetable`
-- `GET /ws` (WebSocket stream)
+- `GET /curriculum-progress`
+- `GET /semester`
+- `GET /world-state`
+- `GET /world-events`
+- `WS /ws` (WebSocket stream)
 
 ## Simulated calendar & routine
 
@@ -129,7 +133,7 @@ Templates live under `persona_templates` in `configs/campus_basic.json`.
 Use `class_session` in `configs/campus_basic.json` to run a teaching cycle:
 
 ```
-讲授 → 提问 → 小组讨论 → 总结
+lecture -> question -> group -> summary
 ```
 
 Configure phase lengths with:
@@ -149,6 +153,11 @@ Configure phase lengths with:
 
 Each student tracks per-topic understanding. Tests and review events update
 the knowledge scores, and teachers adjust strategy based on feedback.
+
+## Perception & world events
+
+Perception can be configured by range/decay/occlusion so messages are not
+always observed. The UI can display TRUE/PERCEIVED/SUSPICION world events.
 
 ## Project layout
 

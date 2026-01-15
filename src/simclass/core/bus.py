@@ -19,6 +19,8 @@ class AsyncMessageBus:
         send_retries: int = 2,
         retry_backoff: float = 0.2,
         on_drop=None,
+        message_filter=None,
+        message_observer=None,
     ) -> None:
         self._queues: Dict[str, asyncio.Queue] = {}
         self._lock = asyncio.Lock()
@@ -27,7 +29,15 @@ class AsyncMessageBus:
         self._send_retries = send_retries
         self._retry_backoff = retry_backoff
         self._on_drop = on_drop
+        self._message_filter = message_filter
+        self._message_observer = message_observer
         self._logger = logging.getLogger("bus")
+
+    def set_message_filter(self, message_filter) -> None:
+        self._message_filter = message_filter
+
+    def set_message_observer(self, message_observer) -> None:
+        self._message_observer = message_observer
 
     async def register(self, agent_id: str) -> asyncio.Queue:
         async with self._lock:
@@ -40,11 +50,9 @@ class AsyncMessageBus:
     async def send(self, message: Message) -> None:
         if message.receiver_id is None:
             raise ValueError("receiver_id required for direct send")
-        queue = self._queues.get(message.receiver_id)
-        if queue is None:
-            await self._handle_drop(message, reason="missing_queue")
-            return
-        await self._put_with_retry(queue, message)
+        await self._deliver(
+            message, message.receiver_id, apply_filter=True, apply_observer=True
+        )
 
     async def broadcast(self, message: Message, recipients: Iterable[str]) -> None:
         for agent_id in recipients:
@@ -62,7 +70,9 @@ class AsyncMessageBus:
                 )
             else:
                 outbound = message
-            await self._put_with_retry(queue, outbound)
+            await self._deliver(
+                outbound, agent_id, apply_filter=True, apply_observer=True
+            )
 
     async def emit_system(self, event: SystemEvent, recipients: Iterable[str]) -> None:
         for agent_id in recipients:
@@ -100,6 +110,37 @@ class AsyncMessageBus:
                     break
                 await asyncio.sleep(self._retry_backoff * (attempt + 1))
         await self._handle_drop(item, reason=f"queue_full:{last_error}")
+
+    async def _deliver(
+        self,
+        message: Message,
+        receiver_id: str,
+        *,
+        apply_filter: bool,
+        apply_observer: bool,
+    ) -> None:
+        original = message
+        outbound = message
+        if apply_filter and self._message_filter:
+            outbound = self._message_filter(message, receiver_id)
+            if outbound is None:
+                return
+        queue = self._queues.get(receiver_id)
+        if queue is None:
+            await self._handle_drop(outbound, reason="missing_queue")
+            return
+        await self._put_with_retry(queue, outbound)
+        if apply_observer and self._message_observer:
+            extras = self._message_observer(original, receiver_id) or []
+            for extra in extras:
+                if not extra.receiver_id:
+                    continue
+                await self._deliver(
+                    extra,
+                    extra.receiver_id,
+                    apply_filter=False,
+                    apply_observer=False,
+                )
 
     async def _handle_drop(self, message: Message, reason: str) -> None:
         self._logger.warning("drop message %s (%s)", message.message_id, reason)

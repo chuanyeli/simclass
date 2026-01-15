@@ -164,9 +164,13 @@ class Scenario:
     week_patterns: List[WeekPatternConfig]
     week_plan: List[str]
     semester_events: List[dict]
+    scenes: List[dict]
+    classroom_layout: dict
+    objects: List[dict]
     curriculum: Optional[CurriculumConfig]
     rng_seed: int
     social_graph: dict
+    perception: dict
 
     def events_for_tick(self, tick: int) -> List[ScenarioEvent]:
         return [event for event in self.events if event.tick == tick]
@@ -190,10 +194,14 @@ def load_scenario(path: Path) -> Scenario:
     week_patterns_cfg = raw.get("week_patterns", {})
     week_plan_cfg = raw.get("week_plan", [])
     semester_events_cfg = raw.get("semester_events", [])
+    scenes_cfg = raw.get("scenes", [])
+    classroom_layout_cfg = raw.get("classroom_layout", {})
+    objects_cfg = raw.get("objects", [])
     curriculum_cfg = raw.get("curriculum")
     lesson_plans_cfg = raw.get("lesson_plans", {})
     question_bank_cfg = raw.get("question_bank", {})
     social_graph_cfg = raw.get("social_graph", {})
+    perception_cfg = raw.get("perception", {})
     prompts = raw.get("prompts", {})
     agent_defaults = raw.get("agent_defaults", {})
     default_agent_llm = agent_defaults.get("llm", {})
@@ -385,7 +393,11 @@ def load_scenario(path: Path) -> Scenario:
         week_patterns=week_patterns,
         week_plan=list(week_plan_cfg),
         semester_events=list(semester_events_cfg),
+        scenes=list(scenes_cfg),
+        classroom_layout=dict(classroom_layout_cfg),
+        objects=list(objects_cfg),
         curriculum=curriculum,
         rng_seed=int(raw.get("rng_seed", 42)),
         social_graph=dict(social_graph_cfg),
+        perception=dict(perception_cfg),
     )

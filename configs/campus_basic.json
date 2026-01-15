@@ -20,6 +20,25 @@
     "day_minutes": 240,
     "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"]
   },
+  "routine": {
+    "wake_time": "08:00",
+    "breakfast_start": "08:20",
+    "breakfast_end": "08:40",
+    "morning_class_start": "08:50",
+    "morning_class_count": 3,
+    "class_duration": 40,
+    "break_duration": 10,
+    "test_start": "11:20",
+    "test_end": "12:00",
+    "lunch_start": "12:00",
+    "lunch_end": "14:00",
+    "afternoon_class_start": "14:00",
+    "afternoon_class_count": 5,
+    "school_end": "18:00",
+    "review_breaks": true,
+    "review_after_school": true,
+    "after_school_review_offset": 10
+  },
 
   "academic_calendar": {
     "start_date": "2026-01-13",
@@ -101,25 +120,89 @@
       "emit": { "type": "activity", "activity": "homeroom", "message": "班会：总结与下周计划" }
     }
   ],
+  "scenes": [
+    { "id": "classroom", "type": "classroom" },
+    { "id": "corridor", "type": "corridor" },
+    { "id": "playground", "type": "playground" },
+    { "id": "office", "type": "office" },
+    { "id": "cafeteria", "type": "cafeteria" }
+  ],
 
-  "routine": {
-    "wake_time": "08:00",
-    "breakfast_start": "08:20",
-    "breakfast_end": "08:40",
-    "morning_class_start": "08:50",
-    "morning_class_count": 3,
-    "class_duration": 40,
-    "break_duration": 10,
-    "test_start": "11:20",
-    "test_end": "12:00",
-    "lunch_start": "12:00",
-    "lunch_end": "14:00",
-    "afternoon_class_start": "14:00",
-    "afternoon_class_count": 5,
-    "school_end": "18:00",
-    "review_breaks": true,
-    "review_after_school": true,
-    "after_school_review_offset": 10
+  "classroom_layout": {
+    "rows": 4,
+    "cols": 5,
+    "empty_seats": ["r1c5"],
+    "teacher_desk": { "row": 0, "col": 2 },
+    "doors": [
+      { "row": 0, "col": 0 }
+    ]
+  },
+
+  "objects": [
+    { "id": "blackboard", "type": "blackboard", "scene_id": "classroom" },
+    { "id": "projector", "type": "projector", "scene_id": "classroom" },
+    { "id": "notebook_share", "type": "notebook", "scene_id": "classroom" },
+    { "id": "snack_box", "type": "snack", "scene_id": "classroom" },
+    { "id": "paper_note_stack", "type": "paper_note", "scene_id": "classroom" }
+  ],
+  "perception": {
+    "enabled": true,
+    "log_observers": true,
+    "observer_topics": ["peer_comment", "peer_reply"],
+    "observer_delivery": {
+      "enabled": true,
+      "roles": ["teacher"],
+      "topic": "overheard",
+      "chance": 0.45
+    },
+    "bypass_topics": [
+      "announcement",
+      "lecture",
+      "question",
+      "answer",
+      "quiz",
+      "quiz_answer",
+      "quiz_score",
+      "summary",
+      "review",
+      "feedback",
+      "discipline",
+      "cold_call",
+      "ack",
+      "thanks"
+    ],
+    "topic_channels": {
+      "noise": "hearing",
+      "peer_comment": "hearing",
+      "peer_reply": "hearing"
+    },
+    "suspicion_topics": ["noise"],
+    "mask_sender_topics": ["noise"],
+    "degrade_threshold": 0.35,
+    "default_profile": {
+      "vision_range": 5,
+      "hearing_range": 6,
+      "distance_decay": "linear",
+      "decay_alpha": 0.6,
+      "occluded_seats": [],
+      "occlusion_factor": 0.5
+    },
+    "teacher_profile": {
+      "vision_range": 6,
+      "hearing_range": 7,
+      "distance_decay": "linear",
+      "decay_alpha": 0.6,
+      "occluded_seats": ["r4c1", "r4c2", "r4c4", "r4c5"],
+      "occlusion_factor": 0.4
+    },
+    "student_profile": {
+      "vision_range": 4,
+      "hearing_range": 5,
+      "distance_decay": "linear",
+      "decay_alpha": 0.6,
+      "occluded_seats": [],
+      "occlusion_factor": 0.6
+    }
   },
 
   "curriculum": {
@@ -933,3 +1016,5 @@
     "port": 8010
   }
 }
+
+
